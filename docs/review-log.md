@@ -90,3 +90,13 @@
 
 - 링크·ADR 앵커 확인: 깨진 링크 0개, ADR 17개
 - 앞선 리뷰에서 제거한 용어(leases, proposed revisions, offset maps, `/agent/call`, `vectors.npy`, `bcrypt`, `M1 |`)를 grep. 남은 결과는 대체 내용을 설명하는 메모뿐
+
+## 리뷰 이후 변경
+
+- 3차 리뷰 이후 요구사항 변경으로 추가된 결정. 위 리뷰 기록은 당시 상태 그대로 보존(Claude·Batches·git·$ 언급은 이력)
+
+| 변경 | 근거 | 반영 문서 |
+|---|---|---|
+| **ADR-018**: LLM 상한 GPT-OSS-120B(사내 서빙, OpenAI 호환 API, `httpx` 직접 호출). LLM 없는 자동화 우선(요약·추출·분류·표준화는 규칙·템플릿, LLM은 서술 보강·잔여분만), LLM 리랭크 삭제, 비용 → 처리량 모델. ADR-007 대체 | 사용 가능한 LLM이 GPT-OSS-120B까지. Claude 전용 기능(Batches, 프롬프트 캐싱, `messages.parse` 등) 전제 무효 | 전체 문서 (overview, options, decisions, research §1·§4.2·§5, knowledge-model, platform §2·§4·§6·§7, roadmap, 01–06) |
+| **ADR-019**: 한국어 검색 품질 최우선. nori `_analyze` + 사용자 사전 + 바이그램 안전망, 임베딩 기본값 KURE-v1, 한국어 평가 세트(recall@5 ≥ 0.85, MRR@10 ≥ 0.7, 무결과율 < 5 %), 옵션 재평가(한국어 검색 가중치 20 %, A 4.85), Q15 추가. ADR-005·ADR-006 갱신 | 한국어 검색 품질이 최우선 요구사항, 사내 클러스터에서 nori 사용 가능 | 전체 문서 (overview, options, decisions, research §1·§4.1·§4.3, platform §2·§9·§10, roadmap, 01·03·04·05·06) |
+| **ADR-020**: git 미사용. SQLite가 유일한 기준 원본, `documents` + append-only `document_versions`, 이력·diff는 자체 화면, 백업·복구는 DB 백업 복원 + `opspedia rebuild`. ADR-003 대체 | 운영 호스트에서 git 사용 불가(개발·설계 문서는 git 허용). 배포는 빌드 아티팩트 복사·설치 | 전체 문서 (overview, options, decisions, knowledge-model, research §1, platform §1·§2·§4·§5·§10, roadmap, 01–06) |

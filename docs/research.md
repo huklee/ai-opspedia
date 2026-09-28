@@ -7,16 +7,18 @@
 
 | 발견 사항 | 계획 반영 |
 |---|---|
-| 기본 SQLite FTS5 `trigram`으로는 2음절 한국어 단어(`장애`, `배치`) 검색 불가 **[measured]** | FTS5 앞단에 한글 바이그램·식별자 분리용 자체 분석기 ([03-storage](components/03-storage.md) §4) |
+| 기본 SQLite FTS5 `trigram`으로는 2음절 한국어 단어(`장애`, `배치`) 검색 불가 **[measured]** | 토크나이저 = nori(ES/OpenSearch `_analyze` + 사용자 사전), 자체 한글 바이그램은 재현율 안전망, 식별자 분리 유지 ([ADR-019](decisions.md#adr-019), [03-storage](components/03-storage.md) §4) |
 | 전수 코사인 계산으로 충분(50k×1024에서 5.3 ms, 100k에서 ~9 ms) **[measured]** | 벡터 DB / ANN 인덱스 없이 float32 BLOB + numpy ([ADR-004](decisions.md#adr-004)) |
 | DeepWiki식 생성은 중요 컴포넌트를 빠뜨리고 공식 문서로 오인되기 쉬움 **[moderate]** | **인벤토리 엔티티마다 페이지 하나** 생성, "AI 생성" 라벨과 출처 표시 ([02-synthesis](components/02-synthesis.md)) |
-| Karpathy "LLM Wiki": raw/ → LLM 위키 → 스키마 구조, **ingest / query / lint** 연산, append-only 로그 **[strong]** | `raw` 스냅샷과 `content/` 분리, 야간 **lint** 작업, `log` 테이블, 답변 write-back (P2) |
+| Karpathy "LLM Wiki": raw/ → LLM 위키 → 스키마 구조, **ingest / query / lint** 연산, append-only 로그 **[strong]** | `raw` 스냅샷과 SQLite `documents`(기준 원본) 분리, 야간 **lint** 작업, `log` 테이블, 답변 write-back (P2) |
 | 해시 기반 stale 판정은 과잉 발동(raw 해시 변경 중 의미 있는 것은 ~34 %) **[moderate]** | raw 바이트 대신 **정규화한 시맨틱 뷰**(파싱한 DAG 그래프 / DDL AST / 매핑 JSON) 해시 |
 | Airflow REST가 실제 상태의 기준, AST는 동적 DAG에서 실패 **[strong/moderate]** | DAG 커넥터 = REST 스냅샷 + 코드 세부용 AST. AST로 해석 불가하면 `dynamic: true` |
 | OpenSearch는 **ISM**(`_plugins/_ism/explain`), Elasticsearch는 **ILM**(`_ilm/explain`) **[strong]** | 인덱스 커넥터에서 엔진별 분기 |
 | Contextual Retrieval: 컨텍스트 임베딩 + BM25로 검색 실패 −49 %, 리랭크 추가 시 −67 % **[strong]** | 청크마다 결정적 컨텍스트 헤더(비용 없음), LLM 컨텍스트 문장은 선택 (P1) |
-| RRF(k=60)는 점수 정규화 불필요, k∈[20,100]에서 안정적 **[strong]** | 결합 방식 = RRF, 리랭크는 선택 |
-| Anthropic에는 **임베딩 엔드포인트 없음**. 한국어 선택지는 Voyage(API), bge-m3 / KURE-v1(로컬) **[moderate]** | 교체 가능한 embedder. 기본 Voyage API, fallback 로컬 bge-m3. 30–50개 쿼리 평가로 결정 ([ADR-006](decisions.md#adr-006)) |
+| RRF(k=60)는 점수 정규화 불필요, k∈[20,100]에서 안정적 **[strong]** | 결합 방식 = RRF만, LLM 리랭크 없음 ([ADR-005](decisions.md#adr-005)) |
+| 한국어 임베딩 선택지는 KURE-v1 / bge-m3(로컬), Voyage(API). MTEB-ko-retrieval에서 KURE-v1 최상위(§4.3) **[moderate]** | 교체 가능한 임베더. 기본 로컬 KURE-v1 ▸ bge-m3 ▸ (외부 API 승인 시) Voyage. 한국어 평가 세트(질의 80–100개)로 확정 ([ADR-006](decisions.md#adr-006), [ADR-019](decisions.md#adr-019)) |
+| 사용 가능한 LLM 상한은 사내 서빙 GPT-OSS-120B(OpenAI 호환 API, 배치 API·토큰 과금 없음) (§5) | LLM 없는 자동화 우선, LLM은 서술 보강·규칙 실패분만. `LLMClient` 뒤에 숨겨 설정으로 교체 ([ADR-018](decisions.md#adr-018)) |
+| 운영 호스트에서 git 사용 불가(개발·문서는 git 허용) | SQLite가 유일한 기준 원본, `documents` + append-only `document_versions` ([ADR-020](decisions.md#adr-020)) |
 
 ## 2. 환경 조사 (대상 호스트: `huklee-01`, tailnet의 Mac mini)
 
@@ -73,18 +75,24 @@
 - `unicode61`은 조사가 붙은 단어를 별개 토큰으로 취급(서울은 ≠ 서울), 검색 누락 발생 **[moderate]**
 - `trigram`은 조사 문제를 풀지만 3글자 이상 필요 **[moderate]**. 우회책: LIKE fallback, 이중 인덱스, 바이그램 토크나이저(fts5-cjk)
 - **kiwipiepy**(pip, 순수 wheel)로 형태소 사전 토큰화 시 한국어 BM25 벤치마크(AutoRAG)에서 정밀도 우위 **[moderate]**
-- **결정**: v1은 자체 바이그램 분석기(의존성 없음, 측정 완료). P1에서 kiwipiepy 형태소 컬럼 추가 후 평가 세트 결과로 선택([ADR-005](decisions.md#adr-005)). 식별자는 형태소 분리 제외
+- **nori**(ES/OpenSearch `analysis-nori` 플러그인, mecab-ko-dic 사전)는 `_analyze` API로 인덱스 생성 없이 토큰화 가능. 사내 클러스터에서 사용 가능(Q15에서 권한 확인)
+- **결정**: 토크나이저 = nori, `_analyze` 호출([ADR-019](decisions.md#adr-019))
+  - `nori_tokenizer`(`decompound_mode: mixed`) + `nori_part_of_speech` + `nori_readingform` + `lowercase`, 사용자 사전(`user_dictionary_rules`)에 엔티티 식별자·운영 용어집 반영
+  - §2의 바이그램 측정 결과는 재현율 안전망 컬럼의 근거로 유지. 가중치 nori > 식별자 > 바이그램(평가로 결정)
+  - `_analyze` 불가 시 python-mecab-ko(같은 mecab-ko-dic) 로컬 폴백, 그것도 없으면 바이그램만. kiwipiepy는 대안으로만 검토
+  - 식별자는 형태소 분리 제외(사용자 사전으로 보호)
 
 ### 4.2 하이브리드 검색
 - RRF, k = 60 (Cormack et al. 2009) **[strong]**
 - 리랭크: 크로스 인코더 `bge-reranker-v2-m3`(GPU <100 ms, CPU는 더 느림) vs LLM 리랭크(50건에 0.6–2 s) **[moderate]**
-  - **결정**: UI는 RRF만. 에이전트 호출에는 상위 20건 Claude 리랭크 옵션(`rerank=true`), v1은 로컬 모델 미사용
+  - **결정**: UI·에이전트 모두 RRF만, LLM 리랭크 없음([ADR-018](decisions.md#adr-018)). 크로스 인코더도 v1 미사용
 - 청킹: 제목 단위 경계, ~500 토큰(최대 800), 약 60 토큰 오버랩(제목마다 리셋), 코드·표는 분할 안 함 **[moderate]**
 
 ### 4.3 임베딩 (한국어 근거)
 - MTEB-ko-retrieval nDCG@10: KURE-v1 0.762, bge-m3 0.751, KoE5 0.734 **[moderate]**
 - Voyage 다국어 모델도 한국어 성능 우수 주장(벤더 벤치마크) **[moderate]**
 - 우리 텍스트는 한영 혼합에 식별자가 많아 BM25가 대부분 담당 **[inferred]**. 임베딩 효과는 주로 자연어 질문
+- **결정**: 기본값 로컬 KURE-v1 ▸ bge-m3 ▸ (외부 API 승인 시) Voyage. 사내 GPU 서빙이 있으면 그쪽 우선. 한국어 평가 세트로 최종 확정([ADR-006](decisions.md#adr-006))
 
 ### 4.4 소스 파싱
 | 소스 | 방법 | 근거 |
@@ -113,21 +121,23 @@
 | 잦은 변경 / diff 노이즈 | 시맨틱 해싱, temperature와 무관한 결정적 템플릿, 섹션 단위 재생성, 생성 영역 펜스 구분 |
 | 사람 수정 내용 유실 | `human_override`, 펜스 영역, verified 페이지는 덮어쓰지 않고 수정안 *제안* |
 
-## 5. 계획에 쓴 Claude API 사실 (2026-09-28 확인)
+## 5. 계획에 쓴 LLM 사실 (2026-09-28 기준)
+> 이전 판의 Claude API 사실은 [ADR-007](decisions.md#adr-007)의 근거(이력). [ADR-018](decisions.md#adr-018)로 대체되어 삭제
+
+GPT-OSS-120B 사내 서빙 전제 **[inferred]**. 엔드포인트·동시성은 Q5에서 확인
+
 | 사실 | 용도 |
 |---|---|
-| 기본 모델 **`claude-opus-5`**(MTok당 $5 / $25). Batches API **−50 %**, 배치당 요청 ≤100k개 또는 256 MB, 대부분 < 1 h 내 완료, 결과 29일 보관 | 전체 재빌드·야간 합성을 Batches로 처리 |
-| 구조화 출력: `output_config.format` / `client.messages.parse()`(검증된 JSON) | 엔티티 추출, 분류, frontmatter 필드 |
-| 프롬프트 캐싱: 접두어 일치, 캐시 읽기는 입력 가격의 ≈ 0.1×, breakpoint ≤ 4개 | 공통 시스템 프롬프트 + 스키마 + 분류 체계를 호출 간 캐싱 |
-| 토큰 계산: `messages.count_tokens` | 재빌드 전 비용 추정 |
-| Opus 5는 서버 측 거절 fallback(`fallbacks: "default"`, beta 헤더) 권장 | 대화형 호출에 적용(Batches에서는 불가) |
-| 임베딩 API 없음 | 별도 embedder ([ADR-006](decisions.md#adr-006)) |
+| 모델 **GPT-OSS-120B**, 사내 서빙. OpenAI 호환 Chat Completions API, endpoint·모델명은 설정값 | `LLMClient` 뒤에서 `httpx`로 직접 호출(별도 SDK 없음). 모델 교체는 설정 변경만 |
+| 구조화 출력: 서빙이 지원하면 JSON schema 강제(`response_format` / guided decoding) | 엔티티 추출·분류의 규칙 실패분, frontmatter 서술 필드. 미지원 시 pydantic 검증 + 1회 재시도 |
+| 배치 API 없음 | 동시 요청 풀(4–8) + 입력 해시 기반 결과 캐시 |
+| 토큰 과금 없음, 제약은 GPU 처리량 | 1실행당 처리량 게이트(LLM 호출 수·예상 소요 시간 상한) |
+| 임베딩은 LLM과 별도 모델 | 별도 임베더 ([ADR-006](decisions.md#adr-006)) |
 
-**비용 추정** (추론, 2차 리뷰에서 수정)
+**처리량 추정** (추론, ADR-018 기준)
 
-- 항목당 호출 1회 기준: 소스 항목 ≈ 2 000개 × 입력 ~6k + 출력 ~1.5k 토큰 ≈ 입력 12 M / 출력 3 M
-  - `claude-opus-5` Batches 기준 호출 유형당 12 × $2.5 + 3 × $12.5 = $67.5
-- 실제로는 항목당 **2–4회 호출**(서술/표준화, 요약, 추출, 분류) + thinking 토큰
-- **Batches 사용 시: 전체 빌드 ≈ $120–250**, 일일 증분(≈ 2–5 % 변경) ≈ $4–10/일
-- **v1은 동기 호출**(3차 리뷰에서 단순화)이라 약 2배: **전체 빌드 ≈ $250–500, $8–20/일**
-- 예산은 Batches 내 캐시 이득 없음을 가정. 첫 실행 측정 후 기준 재설정
+- 상한: 소스 항목 ≈ 2 000개 × 항목당 최대 2–4회 호출 ≈ 4 000–8 000회, 호출당 입력 ~6k + 출력 ~1.5k 토큰 → 입력 ≈ 24–48 M / 출력 ≈ 6–12 M 토큰
+- 실제: 요약·엔티티 추출·분류·장애/매뉴얼 표준화 대부분이 결정적 처리. LLM은 서술 보강과 규칙 실패분만이라 호출 수는 상한보다 크게 적을 전망(정량 값은 미정)
+- 소요 시간 ≈ LLM 호출 수 ÷ (동시성 4–8 × 호출당 처리 속도)
+- 일일 증분(≈ 2–5 % 변경)은 전체 빌드 호출의 2–5 % 수준
+- 달러 비용 없음. GPU 처리량은 첫 실행에서 측정 후 처리량 게이트 기준 설정

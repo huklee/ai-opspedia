@@ -4,7 +4,8 @@
 
 ## 1. 한눈에 보기
 
-- **문서**: YAML frontmatter가 붙은 Markdown 파일. ai-opspedia의 기본 단위
+- **문서**: YAML frontmatter가 붙은 Markdown 전문. ai-opspedia의 기본 단위
+  - SQLite `documents`(현재 전문) + `document_versions`(append-only 전체 버전)에 저장, 별도 파일 저장소 없음([ADR-020](decisions.md#adr-020))
 - **엔티티**: 문서가 설명하는 대상. 대상 시스템에 실재하는 DAG, 테이블, 인덱스 등
 - **엣지**: 엔티티 간 관계(DAG → 테이블 *writes*, 인덱스 → DAG *built_by*, 장애 → DAG *affected* 등)
 - **청크**: 검색용 문서 분할 단위
@@ -22,9 +23,9 @@
 | 종류 | 정식 ID 형식 | 예시 |
 |---|---|---|
 | 엔티티 | `<type>:<namespace>.<name>` (소문자, 불변) | `dag:reco.feature_store_daily`, `table:dw.user_features`, `index:search-prod.products_v3`, `index_family:search-prod.products`, `alias:search-prod.products` |
-| 문서 | 확장자 뺀 트리 경로 | `Systems/Reco/DAGs/feature_store_daily` |
+| 문서 | 트리 경로 | `Systems/Reco/DAGs/feature_store_daily` |
 | 청크 | `<doc_id>#<heading-slug>[~n]` | `Systems/Reco/DAGs/feature_store_daily#backfill~2` |
-| 출처 | URI 형태 | `git://reco-dags@9f3c2e1:dags/feature_store.py#L12-L88`, `airflow://prod/dags/feature_store_daily@2026-09-28T02:00Z`, `es://prod/products_v3/_mapping@…`, `jira://OPS-2291` |
+| 출처 | URI 형태 | `file://reco-dags/dags/feature_store.py#L12-L88`(내용 해시는 `sources[].hash`), `airflow://prod/dagSources/<file_token>`, `airflow://prod/dags/feature_store_daily@2026-09-28T02:00Z`, `es://prod/products_v3/_mapping@…`, `jira://OPS-2291` |
 
 ID에 시크릿·자격 증명이 든 호스트명은 절대 금지
 
@@ -41,7 +42,7 @@ ID에 시크릿·자격 증명이 든 호스트명은 절대 금지
 
 - 트리 세그먼트는 설정의 표시 이름(`systems.reco.title: Reco`, `clusters.search-prod.title: search-prod`), 리프는 원래 식별자(`feature_store_daily`) 사용
 - 문서 `id` = 트리 경로. 분류기 출력도 이 `id`
-- 문서 이동(id 변경) 시 같은 트랜잭션에서 `redirects` 행(이전 → 새 경로) 기록, 청크·`entities.doc_id`·`edges.doc_id` 키 변경([03-storage](components/03-storage.md) §3)
+- 문서 이동(id 변경) 시 같은 트랜잭션에서 `redirects` 행(이전 → 새 경로) 기록, `documents`·`document_versions`·청크·`entities.doc_id`·`edges.doc_id` 키 변경([03-storage](components/03-storage.md) §6)
 
 ## 3. 문서 타입
 
@@ -89,13 +90,13 @@ oncall: reco-platform-oncall                     # 설정에서 가져옴 (팀 �
 status: generated                                # generated | reviewed | verified | stale | archived
 review: { by: null, at: null }                   # 사람이 리뷰/검증하면 채움
 sources:                                         # 출처 (생성 문서는 필수)
-  - uri: git://reco-dags@9f3c2e1:dags/feature_store.py#L12-L88
+  - uri: file://reco-dags/dags/feature_store.py#L12-L88
     hash: sha256:4be1…
     fetched_at: 2026-09-28T01:10:00+09:00
-generator: { name: dag-renderer, version: 1.2.0, llm: claude-opus-5, prompt: dag-summary@3 }
+generator: { name: dag-renderer, version: 1.2.0, llm: gpt-oss-120b, prompt: dag-summary@3 }
 content_hash: sha256:77a0…                        # 본문(frontmatter 제외) 해시. 멱등 판단용
 updated_at: 2026-09-28T01:12:00+09:00
-human_override: false                            # true면 생성기가 이 파일을 다시 쓰지 않음
+human_override: false                            # true면 생성기가 이 문서를 다시 쓰지 않음
 ---
 ```
 
@@ -104,6 +105,7 @@ human_override: false                            # true면 생성기가 이 파�
 - 다시 쓸 때 모르는 키도 보존(상위 호환)
 - `status: reviewed`/`verified` 문서의 출처 해시 변경 시 사실 정보 표는 바로 갱신, 서술은 *수정 제안*으로 전환. 리뷰어 승인 전까지 페이지는 `status: stale`([02-synthesis](components/02-synthesis.md) §4)
 - 순서·구조용 선택 키: `sort_key`(트리 순서), `aliases`(링커용 추가 이름)
+  - 엔티티 이름과 `aliases`는 nori 사용자 사전(`user_dictionary_rules`)에도 반영 → 식별자 분리 방지([ADR-019](decisions.md#adr-019))
 - 생성 영역은 `<!-- gen:start name --> … <!-- gen:end -->`로 감쌈. 바깥은 사람이 자유롭게 덧붙이는 영역
 - 사람의 정정은 `<!-- human:start name --> … <!-- human:end -->`로 감쌈
   - 같은 이름의 생성 섹션보다 우선, 재생성 후에도 유지
@@ -163,5 +165,5 @@ human_override: false                            # true면 생성기가 이 파�
   - 청크 사이 ~60 토큰 겹침. 제목이 바뀌면 겹침 초기화
   - 코드 블록과 표는 중간에서 자르지 않음. 너무 크면 그 자체로 청크 하나
 - 컨텍스트 헤더: 청크마다 `title › section path · type · entity · system` 저장, 임베딩·BM25 색인 때 본문 앞에 붙임
-  - Anthropic *Contextual Retrieval*의 경량판([research.md](research.md) §3)
-- 청크 행 필드: `doc_id`, `heading_path`, `char_start`, `char_end`, `offsets`(스니펫 하이라이트용 분석 토큰 → 원문 위치 매핑), `content_hash`, `embed_model`, `vector`([03-storage](components/03-storage.md) §3과 같은 이름)
+  - *Contextual Retrieval* 기법의 경량판([research.md](research.md) §3)
+- 청크 행 필드: `doc_id`, `heading_path`, `char_start`, `char_end`, `content_hash`, `embed_model`, `vector`([03-storage](components/03-storage.md) §3과 같은 이름)

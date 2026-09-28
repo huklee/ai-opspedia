@@ -21,12 +21,13 @@
 - 노드 payload: `{id, title, type, status, children_count, has_page, badges: [stale, failing, sla-critical]}`
   - 폴더는 필요할 때 로드(children 엔드포인트)
   - 평탄화한 캐시는 실행 종료마다 재생성
-- 이동: `tree_path` 변경 시 git에서 파일 경로 수정 + **리다이렉트** 행 기록. 예전 링크도 계속 동작
+- 이동: `tree_path` 변경 시 문서·청크·엔티티·엣지·**`redirects`** 테이블 갱신을 DB 트랜잭션 하나로 처리([ADR-020](../decisions.md#adr-020)). 예전 링크도 계속 동작
 
 ## 3. 엔티티 레지스트리와 링커 (Backlink & Cross-reference Engine)
 - 레지스트리 = `entities` + `aliases`(dag_id, 스키마 포함/미포함 테이블명, 인덱스명, alias명, 장애 ID, 팀 핸들)
   - 파싱한 사실 정보로 구성
   - LLM이 추출한 언급은 레지스트리와 대조해 해석. 서술만 보고 엔티티를 새로 만들지 않고, 이런 언급은 `unresolved` lint 이슈로 처리
+  - **nori 사용자 사전의 원천**: 레지스트리의 식별자(DAG·테이블·인덱스·alias 이름)를 `user_dictionary_rules`로 내보냄 → 형태소 분석에서 식별자 분리 방지([ADR-019](../decisions.md#adr-019))
 - **렌더링 시점 자동 링크**
   - Aho–Corasick 한 번(alias 집합 대상 직접 구현)을 markdown-it 텍스트 토큰에 적용. HTML 문자열에는 절대 적용 금지
   - 식별자를 엔티티 페이지 링크로 감싸되 코드 블록, 인라인 코드, 제목, 기존 링크는 제외
