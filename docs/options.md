@@ -1,76 +1,84 @@
-# Options Analysis
+# 방식 비교 분석
 
-## 1. Big picture
+## 1. 한눈에 보기
 
-Three architectures were compared against the constraints: **Python server, hands-on components instead of adopted
-open-source platforms, 20–50 users, fast implementation, flexibility/adaptability over scale.**
-**Option A (Lean Python monolith on SQLite) wins clearly (4.75 / 5)** and keeps Option B as a cheap upgrade path.
+- 비교 기준 제약: **Python 서버, 오픈소스 플랫폼 도입 대신 직접 다루는 컴포넌트, 사용자 20–50명, 빠른 구현, 규모보다 유연성**
+- 결론: **Option A(SQLite 기반 경량 Python 모놀리스)가 큰 차이로 1위(4.75 / 5)**
+- Option B는 적은 비용으로 옮길 수 있는 업그레이드 경로로 유지
 
-| | **A. Lean monolith** ✅ | B. Postgres-centric | C. PRD-literal polyglot |
+| | **A. 경량 모놀리스** ✅ | B. Postgres 중심 | C. PRD 그대로의 폴리글랏 |
 |---|---|---|---|
-| Processes to run | **1** (Python) | 2 (Python + PostgreSQL) | 5–6 (Python + Postgres + OpenSearch + Qdrant + Neo4j [+ Airflow]) |
-| Document store | Markdown in git + SQLite tables | PostgreSQL tables (+ git export) | PostgreSQL / MongoDB |
-| Keyword search | SQLite FTS5 + own Korean/identifier analyzer | tsvector (+ `pg_bigm`/mecab extension for Korean) | OpenSearch BM25 + `nori` Korean analyzer |
-| Vector search | float32 BLOBs + numpy brute force | pgvector (HNSW) | Qdrant / Milvus |
-| Graph | `edges` table + recursive CTE | same (or Apache AGE) | Neo4j |
-| Scheduling our jobs | in-process scheduler + CLI | same | Airflow |
-| Frontend | server-rendered HTML + vanilla JS | same | React/MDX SPA (BlockNote/TipTap) |
+| 운영할 프로세스 | **1** (Python) | 2 (Python + PostgreSQL) | 5–6 (Python + Postgres + OpenSearch + Qdrant + Neo4j [+ Airflow]) |
+| 문서 저장소 | git의 Markdown + SQLite 테이블 | PostgreSQL 테이블 (+ git 내보내기) | PostgreSQL / MongoDB |
+| 키워드 검색 | SQLite FTS5 + 자체 한국어/식별자 분석기 | tsvector (+ 한국어용 `pg_bigm`/mecab 확장) | OpenSearch BM25 + `nori` 한국어 분석기 |
+| 벡터 검색 | float32 BLOB + numpy 전수 탐색 | pgvector (HNSW) | Qdrant / Milvus |
+| 그래프 | `edges` 테이블 + 재귀 CTE | 동일 (또는 Apache AGE) | Neo4j |
+| 자체 작업 스케줄링 | 프로세스 내 스케줄러 + CLI | 동일 | Airflow |
+| 프런트엔드 | 서버 렌더링 HTML + vanilla JS | 동일 | React/MDX SPA (BlockNote/TipTap) |
 
-## 2. Scoring (1 = poor … 5 = excellent)
+## 2. 점수 (1 = 나쁨 … 5 = 매우 좋음)
 
-| Criterion (weight) | A | B | C | Notes |
+| 기준 (가중치) | A | B | C | 비고 |
 |---|---|---|---|---|
-| Implementation speed (30 %) | **5** | 4 | 2 | A: no infra, one schema file; C: 4 clients, 4 schemas, sync jobs |
-| Flexibility / adaptability (25 %) | **5** | 4 | 3 | A: change a schema = edit SQL + rebuild from git; C: reindex across stores |
-| Fit with "hands-on, no adopted platforms" (15 %) | **5** | 4 | 1 | C adopts four platforms |
-| Operational burden (15 %) | **5** | 3 | 1 | backups: A = copy 1 file + git; C = 4 backup strategies |
-| Korean search quality (10 %) | 4 | 3 | **5** | C gets `nori` for free; A needs our analyzer (measured OK) |
-| Scale headroom (5 %) | 2 | 4 | **5** | irrelevant at 20–50 users / ≤100k chunks |
-| **Weighted total** | **4.75** | 3.75 | 2.40 | |
+| 구현 속도 (30 %) | **5** | 4 | 2 | A: 인프라 없음, 스키마 파일 하나. C: 클라이언트 4개, 스키마 4개, 동기화 작업 |
+| 유연성 / 적응성 (25 %) | **5** | 4 | 3 | A: 스키마 변경 = SQL 수정 + git에서 재구축. C: 저장소 전체 리인덱스 |
+| "직접 다루고, 플랫폼 도입 없음" 적합도 (15 %) | **5** | 4 | 1 | C는 플랫폼 4개 도입 |
+| 운영 부담 (15 %) | **5** | 3 | 1 | 백업: A = 파일 1개 복사 + git. C = 백업 전략 4가지 |
+| 한국어 검색 품질 (10 %) | 4 | 3 | **5** | C는 `nori` 기본 제공. A는 자체 분석기 필요(측정 결과 양호) |
+| 확장 여유 (5 %) | 2 | 4 | **5** | 사용자 20–50명 / 청크 ≤100k 규모에선 무의미 |
+| **가중 합계** | **4.75** | 3.75 | 2.40 | |
 
-### Re-validation after the three reviews
-The plan grew (index oversight, recovery rules, corrections, context API) and the estimate rose to ≈ 23–34 days. The
-same requirements apply to **B and C** — they would still need the connectors, renderers, curation and API, plus
-their extra stores — so the growth is option-independent and the ranking holds. Pass 3 simplifications keep A fast:
-- synchronous LLM calls before Batches;
-- a file lock instead of leases;
-- Tailscale identity instead of accounts;
-- no revisions table or offset maps;
-- webhooks and MCP deferred.
+### 리뷰 3회 후 재검증
+- 인덱스 감독, 복구 규칙, 정정, 컨텍스트 API 추가로 견적이 ≈ 24–34일로 증가
+- 같은 요구 사항이 **B와 C**에도 적용. 커넥터, 렌더러, 큐레이션, API가 그대로 필요하고 저장소만 더 많음. 늘어난 분량은 방식과 무관해 순위 변동 없음
+- 3차 리뷰의 단순화로 A의 속도 유지
+  - Batches 도입 전까지 동기 LLM 호출
+  - 리스 대신 파일 락
+  - 별도 계정 대신 Tailscale 신원
+  - revisions 테이블과 offset 맵 제외
+  - webhook과 MCP는 뒤로 미룸
 
-## 3. Option details
+## 3. 방식별 상세
 
-### A. Lean Python monolith on SQLite ✅
-- **Shape:** one FastAPI app serving the wiki and API; batch jobs are CLI commands (`opspedia run <pipeline>`) triggered
-  by an in-process scheduler or webhooks, sharing the same code; one SQLite file (WAL) + a git repo of Markdown.
-- **Why it fits:** at 5–20k chunks, BM25 over FTS5 and a numpy matrix scan answer in single-digit milliseconds
-  ([research.md](research.md) §2); SQLite handles dozens of concurrent readers and one batch writer easily.
-- **Risks & mitigations:**
-  - *Single writer* → one pipeline worker with a DB lock; web writes are tiny (review status, accounts).
-  - *Korean BM25 quality* → own analyzer now, kiwipiepy column as P1, evaluated on real queries.
-  - *Outgrowing SQLite* → all access via `storage.Repository`; B is a module swap + rebuild from git.
+### A. SQLite 기반 경량 Python 모놀리스 ✅
+- **형태**
+  - FastAPI 앱 하나가 위키와 API 서빙
+  - 배치 작업은 CLI 명령(`opspedia run <pipeline>`). 프로세스 내 스케줄러나 webhook이 실행하며 코드 공유
+  - 저장소는 SQLite 파일 하나(WAL) + Markdown git 저장소
+- **맞는 이유**
+  - 청크 5–20k 규모에선 FTS5 BM25, numpy 행렬 스캔 모두 한 자릿수 ms 응답([research.md](research.md) §2)
+  - SQLite로 동시 읽기 수십 개 + 배치 쓰기 하나는 무리 없이 처리
+- **리스크와 대응**
+  - *단일 writer* → DB 락을 잡는 파이프라인 워커 하나. 웹 쪽 쓰기는 소량(리뷰 상태, 계정)
+  - *한국어 BM25 품질* → 지금은 자체 분석기, P1로 kiwipiepy 컬럼 추가. 실제 쿼리로 평가
+  - *SQLite 한계 도달* → 모든 접근이 `storage.Repository` 경유. B 전환 = 모듈 교체 + git에서 재구축
 
-### B. Postgres-centric
-- **Shape:** same app; PostgreSQL holds documents, `tsvector` FTS, `pgvector`, `ltree` for paths.
-- **Pros:** concurrent writers, HNSW, mature backups, easy BI access.
-- **Cons:** a database server to run and secure; Korean FTS still requires an extension (`pg_bigm`/`textsearch_ko`) or our
-  analyzer anyway; slower iteration on schema. **Choose if** several teams write concurrently or corpus > ~1M chunks.
+### B. Postgres 중심
+- **형태:** 앱은 동일. PostgreSQL에 문서, `tsvector` FTS, `pgvector`, 경로용 `ltree`
+- **장점:** 동시 쓰기, HNSW, 성숙한 백업 체계, BI 접근 용이
+- **단점**
+  - 운영·보안을 챙길 DB 서버 추가
+  - 한국어 FTS엔 여전히 확장(`pg_bigm`/`textsearch_ko`)이나 결국 자체 분석기 필요
+  - 스키마 반복 속도 저하
+- **고를 때:** 여러 팀이 동시에 쓰거나 코퍼스가 청크 ~1M개를 넘을 때
 
-### C. PRD-literal polyglot
-- **Shape:** PostgreSQL/MongoDB + OpenSearch (+ nori) + Qdrant/Milvus + Neo4j, fan-out writes from synthesis,
-  React/MDX frontend, Airflow for our own pipelines.
-- **Pros:** best-in-class per layer, familiar to the ops team (they already run ES/Airflow), unlimited scale.
-- **Cons:** 4 stores to keep consistent, 4 clients, ~4× the setup and on-call surface, weeks not days; directly contradicts
-  "hands-on instead of open-source platforms". **Choose if** this becomes a company-wide platform.
+### C. PRD 그대로의 폴리글랏
+- **형태:** PostgreSQL/MongoDB + OpenSearch (+ nori) + Qdrant/Milvus + Neo4j. 합성 단계에서 여러 저장소로 나눠 쓰고, 프런트엔드는 React/MDX, 자체 파이프라인은 Airflow
+- **장점:** 계층별 최고 수준 도구, 운영팀에 익숙함(이미 ES/Airflow 운영 중), 규모 제한 없음
+- **단점**
+  - 일관성을 맞출 저장소 4개, 클라이언트 4개
+  - 구축·온콜 부담 ~4배, 며칠이 아니라 몇 주 단위 작업
+  - "오픈소스 플랫폼 대신 직접 다룬다"는 원칙과 정면으로 충돌
+- **고를 때:** 이게 전사 플랫폼이 될 때
 
-## 4. Sub-decisions inside Option A
+## 4. Option A 안의 세부 결정
 
-| Question | Options considered | Choice | ADR |
+| 질문 | 검토한 선택지 | 결정 | ADR |
 |---|---|---|---|
-| Source of truth | DB rows / Markdown files in git / both | **git Markdown = truth, SQLite = rebuildable index** | [ADR-003](decisions.md#adr-003) |
-| Web layer | stdlib `http.server` / Starlette / **FastAPI** / Django | **FastAPI** (typed, OpenAPI for agents, tiny) behind our own thin modules | [ADR-009](decisions.md#adr-009) |
-| Frontend | React SPA (BlockNote/TipTap/MDX) / **server-rendered + vanilla JS** | server-rendered (no build step), progressive JS for tree, ⌘K, panels | [ADR-009](decisions.md#adr-009) |
-| Markdown rendering | client-side (marked) / **server-side (markdown-it-py + Pygments)** / MkDocs | server-side: one renderer for UI, API and exports; KaTeX/Mermaid in the browser | [ADR-009](decisions.md#adr-009) |
-| Embeddings | none / **pluggable: Voyage API ▸ local bge-m3 ▸ off** | pluggable, chosen by eval | [ADR-006](decisions.md#adr-006) |
-| Rerank | none / cross-encoder / **RRF + optional Claude rerank** | RRF default; Claude rerank for agent calls | [ADR-005](decisions.md#adr-005) |
-| Scheduling | cron + CLI / APScheduler / Airflow / **own mini scheduler + CLI + webhook** | own (~150 LOC) with a jobs table | [ADR-010](decisions.md#adr-010) |
+| 기준 원본 (source of truth) | DB 행 / git의 Markdown 파일 / 둘 다 | **git Markdown = 원본, SQLite = 다시 만들 수 있는 인덱스** | [ADR-003](decisions.md#adr-003) |
+| 웹 계층 | stdlib `http.server` / Starlette / **FastAPI** / Django | **FastAPI**(타입 지원, 에이전트용 OpenAPI, 가벼움)를 자체 얇은 모듈 뒤에 배치 | [ADR-009](decisions.md#adr-009) |
+| 프런트엔드 | React SPA (BlockNote/TipTap/MDX) / **서버 렌더링 + vanilla JS** | 서버 렌더링(빌드 단계 없음). 트리, ⌘K, 패널에 점진적 JS | [ADR-009](decisions.md#adr-009) |
+| Markdown 렌더링 | 클라이언트 측 (marked) / **서버 측 (markdown-it-py + Pygments)** / MkDocs | 서버 측: UI, API, 내보내기가 렌더러 하나 공유. KaTeX/Mermaid는 브라우저에서 | [ADR-009](decisions.md#adr-009) |
+| 임베딩 | 없음 / **교체 가능: Voyage API ▸ 로컬 bge-m3 ▸ 끔** | 교체 가능 구조, 평가 결과로 선택 | [ADR-006](decisions.md#adr-006) |
+| 리랭크 | 없음 / cross-encoder / **RRF + 선택적 Claude 리랭크** | 기본은 RRF. 에이전트 호출엔 Claude 리랭크 | [ADR-005](decisions.md#adr-005) |
+| 스케줄링 | cron + CLI / APScheduler / Airflow / **자체 미니 스케줄러 + CLI + webhook** | 자체 구현(~150 LOC) + jobs 테이블 | [ADR-010](decisions.md#adr-010) |

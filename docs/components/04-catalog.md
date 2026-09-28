@@ -1,10 +1,9 @@
-# 4. Tree & Catalog Manager (`opspedia/catalog/`)
+# 4. 트리·카탈로그 관리자 (`opspedia/catalog/`)
 
-## 1. Big picture
+## 1. 한눈에 보기
 
-Owns **structure**: where each page lives in the tree, which entities exist, how pages and entities link to each other,
-and what depends on what. It turns the flat document set into something navigable ("Systems › Reco › DAGs") and
-answerable ("what breaks if `dw.user_features` is late?").
+- **구조** 담당: 페이지의 트리 위치, 엔티티 목록, 페이지·엔티티 간 연결, 의존 관계
+- 평평한 문서 집합을 탐색 가능한 구조("Systems › Reco › DAGs")로 변환하고, "`dw.user_features`가 늦으면 무엇이 깨지나?" 같은 질문에 답하는 기반
 
 ```
  documents ─▶ Tree Resolver ─────────▶ tree nodes (virtual folders + pages, counts, status badges)
@@ -14,78 +13,85 @@ answerable ("what breaks if `dw.user_features` is late?").
 ```
 
 ## 2. Tree Resolver
-- **Path-based tree** from document IDs (`Systems/Reco/DAGs/feature_store_daily`): intermediate folders are virtual
-  unless an `index.md`-style document exists for them (then the folder has its own page).
-- Top-level taxonomy (config, editable): `Systems/`, `Search/`, `Runbooks/`, `Incidents/`, `Manuals/`, `Teams/`, `Notes/`.
-- Order: `sort_key` frontmatter → type order (overview, pipelines, DAGs, schemas, indices…) → title.
-- Node payload: `{id, title, type, status, children_count, has_page, badges: [stale, failing, sla-critical]}`;
-  folders load lazily (children endpoint), with a flattened cache rebuilt after each run.
-- Moves: changing `tree_path` rewrites the file path in git and leaves a **redirect** row so old links keep working.
+- 문서 ID(`Systems/Reco/DAGs/feature_store_daily`) 기반 **경로 트리** 구성
+  - 중간 폴더는 가상 폴더
+  - 그 폴더에 해당하는 `index.md` 형태의 문서가 있으면 폴더 자체 페이지로 사용
+- 최상위 분류 체계(설정으로 편집 가능): `Systems/`, `Search/`, `Runbooks/`, `Incidents/`, `Manuals/`, `Teams/`, `Notes/`
+- 정렬: frontmatter `sort_key` → 타입 순서(overview, pipelines, DAGs, schemas, indices…) → 제목
+- 노드 payload: `{id, title, type, status, children_count, has_page, badges: [stale, failing, sla-critical]}`
+  - 폴더는 필요할 때 로드(children 엔드포인트)
+  - 평탄화한 캐시는 실행 종료마다 재생성
+- 이동: `tree_path` 변경 시 git에서 파일 경로 수정 + **리다이렉트** 행 기록. 예전 링크도 계속 동작
 
-## 3. Entity registry & linker (Backlink & Cross-reference Engine)
-- Registry = `entities` + `aliases` (dag_id, table names with/without schema, index names, alias names, incident IDs,
-  team handles). Built from parsed facts; LLM-extracted mentions are resolved against it (never create entities from
-  prose alone — they become `unresolved` lint issues).
-- **Auto-linking at render time:** a single Aho–Corasick pass (our own implementation over the alias set) runs on
-  **markdown-it text tokens**, never on HTML strings. It wraps identifier occurrences with links to the entity page,
-  skipping code blocks, inline code, headings and existing links. Matches must fall on word or identifier boundaries.
-  The longest match wins.
-- **Backlinks** = `edges` with `rel = mentions` + explicit relations; each page shows *Referenced by* grouped by type.
-- Explicit wiki links `[[dag:reco.feature_store_daily]]` / `[[Systems/Reco/DAGs/…|label]]` are supported in Markdown.
+## 3. 엔티티 레지스트리와 링커 (Backlink & Cross-reference Engine)
+- 레지스트리 = `entities` + `aliases`(dag_id, 스키마 포함/미포함 테이블명, 인덱스명, alias명, 장애 ID, 팀 핸들)
+  - 파싱한 사실 정보로 구성
+  - LLM이 추출한 언급은 레지스트리와 대조해 해석. 서술만 보고 엔티티를 새로 만들지 않고, 이런 언급은 `unresolved` lint 이슈로 처리
+- **렌더링 시점 자동 링크**
+  - Aho–Corasick 한 번(alias 집합 대상 직접 구현)을 markdown-it 텍스트 토큰에 적용. HTML 문자열에는 절대 적용 금지
+  - 식별자를 엔티티 페이지 링크로 감싸되 코드 블록, 인라인 코드, 제목, 기존 링크는 제외
+  - 단어·식별자 경계에서만 매칭, 가장 긴 매칭 우선
+- 백링크 = `rel = mentions`인 `edges` + 명시적 관계. 페이지마다 *Referenced by*를 타입별로 묶어 표시
+- 명시적 위키 링크 `[[dag:reco.feature_store_daily]]` / `[[Systems/Reco/DAGs/…|label]]` 지원
 
-## 4. Graph service ([ADR-012](../decisions.md#adr-012))
-| Query | SQL shape | Used by |
+## 4. 그래프 서비스 ([ADR-012](../decisions.md#adr-012))
+| 쿼리 | SQL 형태 | 사용처 |
 |---|---|---|
-| neighbors(entity, rels?) | indexed lookup on `edges(src)` + `edges(dst)` | entity page side panel |
-| downstream(entity, depth ≤ 4) / upstream | recursive CTE with cycle guard (`path NOT LIKE '%'||dst||'%'`) | **blast radius** panel, agent `impact` tool |
-| path(a, b) | bidirectional BFS in Python over cached adjacency | "how is X related to Y" |
-| incidents_for(entity, transitive) | downstream/upstream ∪ `affected` edges | "known incidents" section |
+| neighbors(entity, rels?) | `edges(src)` + `edges(dst)` 인덱스 조회 | 엔티티 페이지 사이드 패널 |
+| downstream(entity, depth ≤ 4) / upstream | 순환 방지(`path NOT LIKE '%'||dst||'%'`) 재귀 CTE | **영향 범위** 패널, 에이전트 `impact` 도구 |
+| path(a, b) | 캐시한 인접 리스트 위 Python 양방향 BFS | "X와 Y는 어떻게 연결되나" |
+| incidents_for(entity, transitive) | downstream/upstream ∪ `affected` 엣지 | "알려진 장애" 섹션 |
 
-Adjacency is cached in memory (a few thousand edges) and refreshed after runs. Output is JSON plus an optional
-Mermaid `graph LR` snippet the frontend renders.
+- 인접 리스트는 메모리 캐시(엣지 수천 개 수준), 실행 종료 시 갱신
+- 출력은 JSON. 프런트엔드가 렌더링할 Mermaid `graph LR` 스니펫 선택적 포함
 
-## 5. Catalog views & health
-Inventory tables (sortable, filterable): all DAGs (schedule, owner, last run state from snapshots, failures 7d, SLA,
-page status), all tables (producer DAG, consumers, freshness SLA), all **index families** (alias → current write/read
-index, health, docs, size, lifecycle phase, builder DAG, age of current index), services, incidents (severity, affected,
-runbook link).
+## 5. 카탈로그 뷰와 상태 점검
 
-**Search-index health checks** (computed after each snapshot, shown as badges and in lint):
-| Check | Rule (defaults configurable) |
+인벤토리 표(정렬·필터 가능)
+- 전체 DAG: 스케줄, owner, 스냅샷 기준 마지막 실행 상태, 7일간 실패 수, SLA, 페이지 상태
+- 전체 테이블: 생산 DAG, 소비자, 최신성 SLA
+- 전체 **인덱스 패밀리**: alias → 현재 쓰기/읽기 인덱스, health, 문서 수, 크기, 수명 주기 단계, 빌더 DAG, 현재 인덱스 나이
+- 서비스
+- 장애: 심각도, 영향 대상, 런북 링크
+
+검색 인덱스 상태 점검 (스냅샷마다 계산, 배지와 lint에 표시)
+
+| 점검 | 규칙 (기본값은 설정 가능) |
 |---|---|
-| Index health | any index or cluster `red` → critical, `yellow` → warning |
-| Alias freshness | alias → index **older than** the builder DAG's last successful run (swap missed) → warning |
-| Build freshness | current index age > family's freshness expectation (e.g. 26 h for daily builds) → warning |
-| Upstream freshness | the producer DAGs of the tables the builder reads last succeeded before the index was built → shows "built on data as of …" (no warehouse access needed) |
-| Doc-count drift | current docs.count dropped > 20 % vs previous version / previous snapshot → warning |
-| Orphans | indices matching no family, aliases pointing to missing indices, families without a builder DAG |
-| Mapping change | mapping hash differs from previous version → info + diff shown on the family page |
-**Completeness scorecard** (Backstage-inspired): owner set · summary present · runbook linked for SLA-critical DAGs ·
-freshness SLA documented · page reviewed within 90 days — shown per system and in lint.
+| 인덱스 health | 인덱스나 클러스터 중 하나라도 `red`면 critical, `yellow`면 warning |
+| alias 최신성 | alias가 가리키는 인덱스가 빌더 DAG의 마지막 성공 실행**보다 오래됨**(alias 전환 누락) → warning |
+| 빌드 최신성 | 현재 인덱스 나이 > 패밀리의 최신성 기대치(예: 일간 빌드는 26 h) → warning |
+| 업스트림 최신성 | 빌더가 읽는 테이블의 생산 DAG들이 인덱스 빌드 전 마지막으로 성공한 시점 → "… 시점 데이터로 빌드됨" 표시 (웨어하우스 접근 불필요) |
+| 문서 수 변동 | 현재 docs.count가 이전 버전 / 이전 스냅샷 대비 20 % 넘게 감소 → warning |
+| 고아 | 어느 패밀리에도 없는 인덱스, 없는 인덱스를 가리키는 alias, 빌더 DAG가 없는 패밀리 |
+| 매핑 변경 | 매핑 해시가 이전 버전과 다름 → info, 패밀리 페이지에 diff 표시 |
 
-**Pipelines** (config: list of DAGs or a tag) render deterministically in M1b:
-- DAG order (from `waits_for` edges, falling back to schedules);
-- tables and index families produced;
-- a Mermaid lineage diagram;
-- links to each DAG page.
+완성도 스코어카드 (Backstage 참고)
+- 항목: owner 지정 · summary 작성 · SLA-critical DAG의 런북 연결 · 최신성 SLA 문서화 · 90일 안에 리뷰 완료
+- 시스템별 화면과 lint에 표시
 
-An LLM overview is added in M2, and a human "Start here" page per system is pinned first.
+파이프라인(설정: DAG 목록 또는 태그)은 M1b에서 결정적 렌더링
+- DAG 순서(`waits_for` 엣지 기준, 없으면 스케줄로 대체)
+- 생성하는 테이블과 인덱스 패밀리
+- Mermaid 리니지 다이어그램
+- 각 DAG 페이지 링크
+- M2에서 LLM 개요 추가, 시스템마다 사람이 쓴 "Start here" 페이지를 맨 위에 고정
 
-**Column-level impact:** `column:user_age` search and a *Columns used by* section on table pages list every task whose
-`columns_read` / `columns_written` include the column. Tasks with `unknown_columns` (`SELECT *`) are flagged as
-"may use", so a rename answers "what breaks" at column level.
+**컬럼 단위 영향 분석**
+- `column:user_age` 검색과 테이블 페이지의 *Columns used by* 섹션: `columns_read` / `columns_written`에 그 컬럼이 있는 태스크 전부 표시
+- `unknown_columns`(`SELECT *`)가 있는 태스크는 "사용 가능성 있음"으로 표시
+- 컬럼 이름 변경 시 "무엇이 깨지나"에 컬럼 단위로 답변 가능
 
-## 6. Lint (catalog part, nightly + after snapshots for index checks)
-Orphan pages (no parent/links), broken links, unresolved mentions, entities without pages, REST↔AST mismatches,
-aliases pointing to missing indices, stale verified pages, cycles in `upstream_of`. Results in `/admin/lint` and an
-optional digest to the team channel.
+## 6. Lint (카탈로그 부분, 야간 실행 + 인덱스 점검은 스냅샷 직후에도 실행)
+- 대상: 고아 페이지(부모·링크 없음), 깨진 링크, 해석되지 않은 언급, 페이지 없는 엔티티, REST↔AST 불일치, 없는 인덱스를 가리키는 alias, 오래된 verified 페이지, `upstream_of` 순환
+- 결과는 `/admin/lint`에 표시, 원하면 팀 채널로 요약 발송
 
-## 7. Tasks (scheduling source of truth: [roadmap.md](../roadmap.md); Pri = priority within the milestone)
-| Milestone | Pri | Task |
+## 7. 작업 목록 (일정의 기준 원본(source of truth): [roadmap.md](../roadmap.md), Pri = 마일스톤 내 우선순위)
+| 마일스톤 | Pri | 작업 |
 |---|---|---|
-| M1a | P0 | tree resolver + lazy children API; entity registry; inventories (DAGs, tables, index families); **parsed edges + plain downstream list** (reads/writes/builds/waits_for) |
-| M1a | P0 | **search-index health checks** (health, alias vs builder freshness, build age, doc-count drift, orphans, mapping change) + upstream freshness from the producer DAG's last success |
-| M1b | P0 | config-defined pipelines (render + lineage); column-level impact (`column:` search, *Columns used by*) |
-| M3 | P0 | Aho–Corasick auto-linker, backlinks, `[[wiki links]]`; graph service (neighbors, upstream/downstream, blast radius) + Mermaid |
-| M3 | P1 | full lint; service entities from config |
-| later | P2 | completeness scorecard, path(a,b), taxonomy editor UI |
+| M1a | P0 | tree resolver + children 지연 로딩 API, 엔티티 레지스트리, 인벤토리(DAG, 테이블, 인덱스 패밀리), **파싱한 엣지 + 단순 다운스트림 목록**(reads/writes/builds/waits_for) |
+| M1a | P0 | **검색 인덱스 상태 점검**(health, alias와 빌더 최신성 비교, 빌드 나이, 문서 수 변동, 고아, 매핑 변경) + 생산 DAG의 마지막 성공 시점 기준 업스트림 최신성 |
+| M1b | P0 | 설정으로 정의한 파이프라인(렌더링 + 리니지), 컬럼 단위 영향 분석(`column:` 검색, *Columns used by*) |
+| M3 | P0 | Aho–Corasick 자동 링커, 백링크, `[[wiki links]]`, 그래프 서비스(neighbors, upstream/downstream, 영향 범위) + Mermaid |
+| M3 | P1 | 전체 lint, 설정 기반 서비스 엔티티 |
+| later | P2 | 완성도 스코어카드, path(a,b), 분류 체계 편집 UI |
