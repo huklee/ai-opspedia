@@ -1,0 +1,527 @@
+<title>ai-opspedia PoC 결과</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --ground: #f4f6f7; --paper: #ffffff; --ink: #13202a; --muted: #5a6975; --faint: #8795a0;
+  --line: #d8dfe4; --soft: #e9eef1; --accent: #0a6a86; --accent-soft: #dcecf1;
+  --bad: #c23b2b; --bad-soft: #f8e1dd; --ok: #2e7a4c; --ok-soft: #dcefe2; --warn: #b06f12; --warn-soft: #f6ead6;
+  --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0f1519; --paper: #161e23; --ink: #e3eaee; --muted: #9aa9b3; --faint: #6f7f89;
+    --line: #2a353c; --soft: #1d272d; --accent: #54b4d0; --accent-soft: #173640;
+    --bad: #ef7b6b; --bad-soft: #3d201c; --ok: #6cc28f; --ok-soft: #173424; --warn: #e2a64c; --warn-soft: #3a2c15;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0f1519; --paper: #161e23; --ink: #e3eaee; --muted: #9aa9b3; --faint: #6f7f89;
+  --line: #2a353c; --soft: #1d272d; --accent: #54b4d0; --accent-soft: #173640;
+  --bad: #ef7b6b; --bad-soft: #3d201c; --ok: #6cc28f; --ok-soft: #173424; --warn: #e2a64c; --warn-soft: #3a2c15;
+}
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); font: 16px/1.7 var(--sans); padding-inline: 20px; padding-block: 0 80px; }
+.wrap { max-width: 980px; margin: 0 auto; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); }
+code { font-size: .86em; background: var(--soft); padding: .08em .35em; border-radius: 3px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 머리 */
+.mast { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 28px 0;
+  font: 500 12.5px var(--mono); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.mast b { color: var(--ink); font-weight: 600; }
+.hero { padding-block: 44px 36px; border-bottom: 1px solid var(--line); display: grid; gap: 22px; }
+.eyebrow { font: 500 13px var(--mono); color: var(--bad); letter-spacing: .06em; }
+.hero h1 { font-size: clamp(30px, 5.2vw, 50px); line-height: 1.22; font-weight: 700; letter-spacing: -.02em; max-width: 20ch; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.verdicts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.verdict { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; display: grid; gap: 6px; align-content: start; }
+.verdict .k { font: 600 12px var(--mono); letter-spacing: .06em; }
+.verdict.ok .k { color: var(--ok); } .verdict.warn .k { color: var(--warn); } .verdict.go .k { color: var(--accent); }
+.verdict p { font-size: 15px; }
+
+/* 섹션 */
+section { padding-block: 52px 8px; display: grid; gap: 18px; }
+.sh { display: grid; gap: 6px; }
+.sh .no { font: 500 12.5px var(--mono); color: var(--faint); letter-spacing: .08em; }
+.sh h2 { font-size: clamp(22px, 3.2vw, 30px); line-height: 1.3; font-weight: 700; letter-spacing: -.01em; }
+.lede { color: var(--muted); max-width: 64ch; }
+
+/* 숫자 */
+.nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.num { background: var(--paper); padding: 18px 20px; display: grid; gap: 4px; }
+.num b { font: 600 34px/1.1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.num b.warn { color: var(--warn); }
+.num span { font-size: 14px; color: var(--muted); }
+
+/* 호출 로그 */
+.log { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.log-h { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line);
+  font: 500 12.5px var(--mono); color: var(--muted); background: var(--soft); }
+.ev { display: grid; grid-template-columns: 64px 112px 1fr; gap: 14px; padding: 12px 16px; border-top: 1px solid var(--line); align-items: start; }
+.ev:first-of-type { border-top: 0; }
+.ev time { font: 600 14px var(--mono); font-variant-numeric: tabular-nums; }
+.st { font: 600 11.5px/22px var(--mono); padding: 0 8px; border-radius: 3px; text-align: center; letter-spacing: .02em; }
+.st.bad { background: var(--bad-soft); color: var(--bad); } .st.warn { background: var(--warn-soft); color: var(--warn); }
+.st.ok { background: var(--ok-soft); color: var(--ok); } .st.info { background: var(--accent-soft); color: var(--accent); }
+.ev p { font-size: 15px; } .ev p small { display: block; color: var(--muted); font-size: 13.5px; }
+.ev.you { background: var(--accent-soft); }
+
+/* 한 장의 답 */
+.answer { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; }
+.page { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 18px 20px; display: grid; gap: 12px; }
+.page .pt { font-size: 22px; font-weight: 700; font-family: var(--mono); letter-spacing: -.01em; }
+.props { display: grid; grid-template-columns: 76px 1fr; gap: 4px 12px; font-size: 14px; }
+.props dt { color: var(--muted); } .props dd { margin: 0; }
+.down { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 4px; font-size: 14px; }
+.down div { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; }
+.down .d { font: 500 12px var(--mono); color: var(--faint); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.dot.bad { background: var(--bad); } .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); }
+.side { display: grid; gap: 12px; align-content: start; }
+.clue { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; display: grid; gap: 2px; }
+.clue b { font-size: 15px; } .clue span { font-size: 14px; color: var(--muted); }
+.clue.inc { border-color: var(--bad); } .clue.rb { border-color: var(--accent); } .clue.m { border-color: var(--warn); }
+.before { font-size: 14px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.before span { background: var(--soft); border-radius: 3px; padding: 1px 8px; font-family: var(--mono); font-size: 12.5px; }
+
+/* 파이프라인 */
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.fs { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: grid; gap: 2px; flex: 1 1 150px; }
+.fs b { font-size: 14.5px; } .fs span { font-size: 13px; color: var(--muted); }
+.fs.llm { border-style: dashed; }
+.arrow { align-self: center; color: var(--faint); font-family: var(--mono); }
+
+/* 1주 */
+.chart { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 14px 12px 10px; overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 620px; height: auto; }
+.chart text { font-family: var(--mono); fill: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); padding: 6px 6px 0; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.tl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tblwrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+.tl th, .tl td { text-align: left; padding: 9px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+.tl thead th { border-top: 0; font: 500 12px var(--mono); color: var(--muted); letter-spacing: .04em; background: var(--soft); white-space: nowrap; }
+.tl td.t { font-family: var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+/* 가설 */
+.hyp { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.h { background: var(--paper); display: grid; grid-template-columns: 44px 1fr 96px; gap: 14px; padding: 12px 16px; align-items: center; }
+.h .id { font: 600 14px var(--mono); color: var(--faint); }
+.h p { font-size: 15px; } .h p small { display: block; color: var(--muted); font-size: 13.5px; }
+
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lesson { background: var(--warn-soft); border-radius: 6px; padding: 16px 18px; display: grid; gap: 8px; }
+.lesson b { color: var(--warn); font-size: 15px; }
+.lesson ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: 15px; }
+
+/* 결정 */
+.dec { display: grid; gap: 10px; }
+.d-row { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 14px 18px; display: grid; grid-template-columns: 34px 1fr 1.3fr; gap: 14px; align-items: start; }
+.d-row.primary { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
+.d-row .n { font: 600 20px var(--mono); color: var(--accent); }
+.d-row h3 { font-size: 16.5px; font-weight: 600; }
+.d-row p { font-size: 14.5px; color: var(--muted); }
+.d-row .rec { font-size: 14.5px; }
+.d-row .need { font: 500 12.5px var(--mono); color: var(--faint); margin-top: 4px; }
+
+.swap { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.sw { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 2px; font-size: 14px; }
+.sw b { font-family: var(--mono); font-size: 13px; color: var(--muted); font-weight: 500; }
+.sw span.done { color: var(--ok); font-size: 12.5px; }
+footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); display: grid; gap: 4px; }
+
+@media (max-width: 760px) {
+  .verdicts, .nums, .answer, .pair { grid-template-columns: 1fr; }
+  .ev { grid-template-columns: 56px 1fr; } .ev p { grid-column: 1 / -1; }
+  .h { grid-template-columns: 36px 1fr; } .h .st { grid-column: 2; justify-self: start; }
+  .d-row { grid-template-columns: 28px 1fr; } .d-row .rec { grid-column: 2; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ev.you { animation: pulse 2.4s ease-in-out 1; }
+  @keyframes pulse { 0%, 100% { background: var(--accent-soft); } 40% { background: var(--paper); } }
+}
+
+/* 지식 합성 자세히 */
+.trace { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; }
+.code { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 10px 0; font: 12.5px/1.75 var(--mono); overflow-x: auto; }
+.cl { display: flex; white-space: pre; padding-right: 14px; } .cl i { font-style: normal; color: var(--faint); width: 34px; text-align: right; padding-right: 12px; flex: none; user-select: none; }
+.tk { font-weight: 500; border-radius: 3px; padding: 0 2px; transition: box-shadow .15s, background .15s; }
+.rels { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; align-content: start; }
+.rels li { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; cursor: default; }
+.rels li b { font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-weight: 600; } .rels li em { font-style: normal; margin-left: auto; font: 12px var(--mono); color: var(--faint); }
+.rels li.on, .tk.on { box-shadow: 0 0 0 2px var(--accent); }
+.mb { font: 600 11px/20px var(--mono); padding: 0 7px; border-radius: 3px; white-space: nowrap; }
+.m-dag { background: var(--accent-soft); color: var(--accent); } .m-tag { background: var(--ok-soft); color: var(--ok); }
+.m-own { background: #e8e1f5; color: #5b3c9a; } .m-dep { background: var(--warn-soft); color: var(--warn); }
+.m-sql { background: #dbe9f7; color: #1f5a93; } .m-seq { background: var(--soft); color: var(--muted); }
+.m-name { background: #f3e3ec; color: #8f2f63; } .m-cfg { background: var(--soft); color: var(--ink); } .m-api { background: #e3f0ee; color: #1f6b61; }
+.m-bad { background: var(--bad-soft); color: var(--bad); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .m-own { background: #2c2440; color: #c3a9f0; } :root:not([data-theme="light"]) .m-sql { background: #1a2c40; color: #8ec0f2; } :root:not([data-theme="light"]) .m-name { background: #3a1f2d; color: #eaa3c8; } :root:not([data-theme="light"]) .m-api { background: #173532; color: #86d4c8; } }
+:root[data-theme="dark"] .m-own { background: #2c2440; color: #c3a9f0; } :root[data-theme="dark"] .m-sql { background: #1a2c40; color: #8ec0f2; } :root[data-theme="dark"] .m-name { background: #3a1f2d; color: #eaa3c8; } :root[data-theme="dark"] .m-api { background: #173532; color: #86d4c8; }
+.how { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.howc { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; display: grid; gap: 10px; align-content: start; }
+.howc h3, .funnel-wrap h3 { font-size: 16.5px; font-weight: 600; }
+.howc ol { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; font-size: 14.5px; }
+.note { font-size: 13.5px; color: var(--muted); }
+.dec3 { display: grid; gap: 6px; } .dec3 div { display: flex; gap: 10px; align-items: baseline; font-size: 14.5px; }
+.dec3 span { font: 600 12px var(--mono); color: var(--paper); background: var(--ink); border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+table.mini { width: 100%; border-collapse: collapse; font-size: 13.5px; } table.mini th, table.mini td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); }
+table.mini th { font: 500 11.5px var(--mono); color: var(--muted); border-top: 0; }
+.methods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.mc { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; } .mc p { font-size: 13.5px; } .mc .mb { justify-self: start; }
+.funnel-wrap { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; display: grid; gap: 12px; }
+.funnel { display: grid; gap: 8px; }
+.fr { display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; align-items: center; font-size: 14px; }
+.fr .bar { height: 14px; background: var(--soft); border-radius: 7px; position: relative; overflow: hidden; } .fr .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 7px; }
+.fr b { font: 600 14px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.linkbar { display: flex; height: 22px; border-radius: 4px; overflow: hidden; } .linkbar span { display: block; height: 100%; }
+@media (max-width: 760px) { .trace, .how { grid-template-columns: 1fr; } .methods { grid-template-columns: 1fr 1fr; } .fr { grid-template-columns: 110px 1fr 56px; } }
+</style>
+
+<div class="wrap">
+  <div class="mast"><span><b>ai-opspedia</b> · PoC 결과 보고</span><span>2026-09-29 · dummy 데이터 · 사내 검토용</span></div>
+
+  <header class="hero">
+    <div class="eyebrow">05:21 KST · ranking_score_daily FAILED</div>
+    <h1>새벽 3시 질문의 답은 <em>코드와 API만으로</em> 한 화면에 모인다</h1>
+    <div class="verdicts">
+      <div class="verdict ok"><span class="k">증명</span><p>LLM 없이 페이지 66개 자동 생성, 장애 대응에 필요한 답까지 클릭 1번.</p></div>
+      <div class="verdict warn"><span class="k">미확정</span><p>실데이터 한국어 검색 품질과 실제 GPT-OSS-120B 서술 품질, 이 두 가지.</p></div>
+      <div class="verdict go"><span class="k">권장</span><p>R1 착수. 키워드 검색은 SQLite FTS5 + nori로 시작하고 OpenSearch 전용 인덱스는 보류.</p></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="sh"><span class="no">숫자로 본 PoC</span><h2>일주일 동안 만든 것</h2></div>
+    <div class="nums">
+      <div class="num"><b>66</b><span>파서 · API만으로 생성된 페이지</span></div>
+      <div class="num"><b>1</b><span>홈에서 답까지 클릭 수</span></div>
+      <div class="num"><b>1</b><span>에이전트가 필요한 API 호출 수</span></div>
+      <div class="num"><b>25</b><span>재현한 지난 1주 파이프라인 실행</span></div>
+      <div class="num"><b>405</b><span>누적 문서 버전 · 전부 diff 조회 가능</span></div>
+      <div class="num"><b class="warn">1 / 3</b><span>한국어 검색 기준을 넘은 비교군</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">그날 아침</span><h2>랭킹 배치 하나가 멈추자 추천과 검색이 함께 흔들림</h2>
+      <p class="lede">dummy 시나리오지만 실제 장애 INC-2291과 같은 패턴. 아래 시각은 opspedia가 수집한 스냅샷 기준.</p></div>
+    <div class="log">
+      <div class="log-h"><span>on-call log · reco-primary</span><span>2026-09-29 KST</span></div>
+      <div class="ev"><time>04:00</time><span class="st bad">FAILED</span><p>product_index_alias_swap 실패<small>새 인덱스 products_v42 문서 수가 30 % 감소해 안전장치가 alias 전환을 막음</small></p></div>
+      <div class="ev"><time>05:21</time><span class="st bad">FAILED</span><p>ranking_score_daily · score_candidates OOM<small>재시도 2회 모두 실패</small></p></div>
+      <div class="ev"><time>06:00</time><span class="st warn">UPSTREAM</span><p>reco_feed_publish upstream_failed<small>reco-feed alias가 전날 인덱스를 계속 가리킴 · 사용자에게 하루 전 추천 노출</small></p></div>
+      <div class="ev"><time>07:05</time><span class="st warn">SLO</span><p>추천 피드 신선도 26.7시간<small>지표 파이프라인이 SLO(≤ 26시간) 위반으로 판정</small></p></div>
+      <div class="ev"><time>09:05</time><span class="st bad">3σ</span><p>추천 피드 CTR 3.62 %<small>7일 평균 4.13 % 대비 −12.4 % · 이상 탐지</small></p></div>
+      <div class="ev you"><time>09:06</time><span class="st info">ON-CALL</span><p>온콜이 opspedia 홈을 엶<small>"지금 확인이 필요한 항목" 맨 위의 ranking_score_daily를 클릭</small></p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">클릭 1번 뒤</span><h2>도구 다섯 개를 돌던 답이 한 장에</h2></div>
+    <div class="before">지금까지 <span>Airflow UI</span><span>DAG 저장소</span><span>Confluence</span><span>Jira</span><span>Grafana</span> → PoC에서는 페이지 한 장</div>
+    <div class="answer">
+      <div class="page">
+        <div class="pt">ranking_score_daily</div>
+        <dl class="props">
+          <dt>상태</dt><dd><span class="st bad">failed</span> <span class="mono">05:00 → 05:21</span></dd>
+          <dt>스케줄</dt><dd><code>0 5 * * *</code> · 재시도 2</dd>
+          <dt>담당</dt><dd>추천 플랫폼팀 · @reco-oncall · #reco-ops</dd>
+          <dt>생성</dt><dd>결정적 템플릿 <code>dag.md.j2</code> · v9</dd>
+        </dl>
+        <div class="down">
+          <div><span class="d">1홉</span><span>reco_feed_publish</span><span class="dot warn" title="upstream_failed"></span></div>
+          <div><span class="d">1홉</span><span>reco.ranked_items</span><span></span></div>
+          <div><span class="d">2홉</span><span>reco-feed 인덱스</span><span class="dot bad" title="조치 필요"></span></div>
+          <div><span class="d">2홉</span><span>ctr_report_daily</span><span class="dot ok" title="success"></span></div>
+          <div><span class="d">3홉</span><span>reco-feed alias</span><span class="dot bad" title="조치 필요"></span></div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="clue inc"><b>알려진 장애 · INC-2291</b><span>같은 증상. 원인은 후보생성 중복 실행으로 파티션이 3배가 된 것, 조치는 중복 파티션 삭제 후 재실행.</span></div>
+        <div class="clue rb"><b>런북 · RB-RECO-001 추천 피드 미갱신 대응</b><span>심각도 표 → 첫 5분 → 원인별 분기 → 복구 → 검증 → 롤백 → 공지 템플릿.</span></div>
+        <div class="clue rb"><b>런북 · RB-RECO-002 랭킹 배치 OOM 대응</b><span>파티션 크기 진단 SQL과 메모리 상향 재실행 명령.</span></div>
+        <div class="clue m"><b>지표 · 사용자 영향</b><span>피드 신선도 26.7시간, CTR −12.4 %. 판정은 규칙(SLO · 7일 평균 · 3σ)으로.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">어떻게 만들어지나</span><h2>사실은 파서가, 서술은 LLM이</h2>
+      <p class="lede">원천은 읽기 전용으로만 읽음. 엔티티와 관계를 먼저 만들고 문장은 마지막에 붙임. LLM이 쓴 문장은 모두 출처 번호를 달아야 하고, 하나라도 빠지면 그 서술은 버리고 템플릿 요약을 유지.</p></div>
+    <div class="flow">
+      <div class="fs"><b>수집</b><span>DAG 코드 · Airflow · DDL · 검색 엔진 · Jira · 매뉴얼 · 지표</span></div><span class="arrow">→</span>
+      <div class="fs"><b>엔티티 · 관계</b><span>sqlglot 리니지 · 센서 의존 · 이름 매칭</span></div><span class="arrow">→</span>
+      <div class="fs"><b>템플릿 렌더링</b><span>상태 · 다운스트림 · 점검 결과</span></div><span class="arrow">→</span>
+      <div class="fs llm"><b>LLM 구조화 (장애만)</b><span>근거 id 인용 필수 · 검증 통과 항목만 반영</span></div><span class="arrow">→</span>
+      <div class="fs"><b>SQLite 버전</b><span>변경 시에만 새 버전 · diff</span></div>
+    </div>
+  </section>
+
+  <section id="synthesis">
+    <div class="sh"><span class="no">지식 합성 자세히</span><h2>코드 한 줄이 페이지의 한 줄이 되기까지</h2>
+      <p class="lede">DAG 코드를 실행하지 않고 파이썬 문법 트리(ast)로 읽어 관계를 뽑고, 관계마다 어느 줄에서 왔는지 영수증을 남김. 오른쪽 관계에 마우스를 올리면 왼쪽 코드의 출처가 강조됨.</p></div>
+    <div class="trace">
+      <div class="code" aria-label="ranking_score_daily.py">
+        <div class="cl"><i>6</i><span>with DAG(<b class="tk m-dag" data-k="dag">dag_id="ranking_score_daily"</b>, schedule="0 5 * * *", <b class="tk m-tag" data-k="tag">tags=["reco", "ranking"]</b>,</span></div>
+        <div class="cl"><i>7</i><span>         default_args={<b class="tk m-own" data-k="own">"owner": "reco-platform"</b>, "retries": 2}) as dag:</span></div>
+        <div class="cl"><i>8</i><span>    wait = ExternalTaskSensor(task_id="wait_embeddings", <b class="tk m-dep" data-k="dep">external_dag_id="user_embedding_daily"</b>)</span></div>
+        <div class="cl"><i>9</i><span>    score = SQLExecuteQueryOperator(task_id="score_candidates", sql="""</span></div>
+        <div class="cl"><i>10</i><span>        INSERT OVERWRITE TABLE <b class="tk m-sql" data-k="w">reco.ranked_items</b> PARTITION (dt='{{ ds }}')</span></div>
+        <div class="cl"><i>11</i><span>        SELECT c.user_id, rank_items(c.items, f.clicks_7d, m.version) AS top50</span></div>
+        <div class="cl"><i>12</i><span>        FROM <b class="tk m-sql" data-k="r">reco.candidates</b> c JOIN <b class="tk m-sql" data-k="r">reco.user_features</b> f ON c.user_id = f.user_id</span></div>
+        <div class="cl"><i>13</i><span>        CROSS JOIN <b class="tk m-sql" data-k="r">reco.model_registry</b> m</span></div>
+        <div class="cl"><i>14</i><span>    """)</span></div>
+        <div class="cl"><i>15</i><span>    <b class="tk m-seq" data-k="seq">wait &gt;&gt; score</b></span></div>
+      </div>
+      <ul class="rels">
+        <li data-k="dag"><span class="mb m-dag">ast · DAG(...)</span><b>엔티티</b> dag:ranking_score_daily <em>6행</em></li>
+        <li data-k="tag"><span class="mb m-tag">ast · DAG tags</span><b>part_of</b> system:reco <em>6행</em></li>
+        <li data-k="own"><span class="mb m-own">ast · owner</span><b>owned_by</b> team:reco-platform <em>7행</em></li>
+        <li data-k="dep"><span class="mb m-dep">ast · 센서</span><b>depends_on</b> dag:user_embedding_daily <em>8행</em></li>
+        <li data-k="w"><span class="mb m-sql">sqlglot</span><b>writes</b> reco.ranked_items <em>10행</em></li>
+        <li data-k="r"><span class="mb m-sql">sqlglot</span><b>reads</b> reco.candidates · user_features · model_registry <em>12–13행</em></li>
+        <li data-k="seq"><span class="mb m-seq">ast · &gt;&gt;</span><b>순서</b> wait_embeddings → score_candidates <em>15행</em></li>
+      </ul>
+    </div>
+
+    <div class="how">
+      <div class="howc">
+        <h3>ast · 코드를 실행하지 않고 읽기</h3>
+        <ol>
+          <li><code>ast.parse</code>로 파일을 문법 트리로 바꿈</li>
+          <li>트리를 돌며 이름이 <code>DAG</code>인 호출을 찾음</li>
+          <li>인자 값 중 <b>글자 그대로 적힌 값</b>만 꺼냄 (<code>literal_eval</code>)</li>
+          <li><code>task_id=</code>가 있는 할당은 태스크, <code>&gt;&gt;</code>는 실행 순서</li>
+          <li><code>sql=</code> 문자열은 sqlglot에 넘김</li>
+        </ol>
+        <p class="note">Airflow 설치나 DAG 임포트가 필요 없어 안전하고 빠름. 태그나 dag_id를 변수·반복문으로 만드는 동적 DAG는 읽지 못해 Airflow REST 응답으로 보완.</p>
+      </div>
+      <div class="howc">
+        <h3>DAG tags · 이미 달려 있는 태그로 소속 정하기</h3>
+        <div class="dec3">
+          <div><span>1</span>설정 <code>dag_systems</code>에 이 DAG가 있으면 그 값</div>
+          <div><span>2</span>없으면 <code>tags</code> 중 시스템 id와 같은 <b>첫</b> 값</div>
+          <div><span>3</span>그래도 없으면 미지정 · lint 경고</div>
+        </div>
+        <table class="mini">
+          <thead><tr><th>DAG</th><th>tags</th><th>결정</th></tr></thead>
+          <tbody>
+            <tr><td>ranking_score_daily</td><td><code>reco</code>, <code>ranking</code></td><td>reco <span class="mb m-tag">tags</span></td></tr>
+            <tr><td>product_index_build</td><td><code>search</code>, <code>index</code></td><td>search <span class="mb m-cfg">설정 우선</span></td></tr>
+            <tr><td>tmp_job (가상)</td><td><code>adhoc</code></td><td>미지정 <span class="mb m-bad">lint</span></td></tr>
+          </tbody>
+        </table>
+        <p class="note">Airflow UI 필터용으로 팀이 이미 붙이는 태그를 재사용하므로 DAG 코드를 고칠 필요가 없음. <code>ranking</code>처럼 시스템 id가 아닌 태그는 무시. 담당 팀은 같은 방식으로 <code>default_args.owner</code>를 팀 id와 대조.</p>
+      </div>
+    </div>
+
+    <div class="methods">
+      <div class="mc"><span class="mb m-sql">sqlglot</span><p>SQL을 구문 트리로 파싱. <code>INSERT</code> 대상은 쓰기, 나머지 테이블은 읽기, <code>WITH</code> 임시 이름은 제외.</p></div>
+      <div class="mc"><span class="mb m-name">이름 매칭</span><p>등록된 이름 전부를 사전 하나로 만들어 문서를 한 번만 훑음(Aho–Corasick). 런북·Jira가 언급한 엔티티를 찾음.</p></div>
+      <div class="mc"><span class="mb m-cfg">설정 · 규칙</span><p>스키마 접두사(<code>reco.</code> → reco), 인덱스 패밀리, 시스템 담당처럼 사람이 적은 규칙. 태그보다 우선.</p></div>
+      <div class="mc"><span class="mb m-api">API</span><p>검색 엔진 <code>_alias</code>, Airflow 실행 상태처럼 응답 JSON 필드를 그대로 사용.</p></div>
+    </div>
+
+    <div class="funnel-wrap">
+      <h3>뽑은 관계는 세 번 자동 검증</h3>
+      <div class="funnel" id="funnel"></div>
+      <div class="linkbar" id="linkbar" aria-label="문서 속 링크 572개의 출처"></div>
+      <div class="legend" id="linklegend"></div>
+      <p class="note">원본 대조는 찾은 글자가 원자료 원문에 실제로 있는지, 문서 사용은 페이지에 링크나 이름으로 쓰였는지 확인. 유사 장애처럼 계산으로 찾은 관계 2개는 원문 글자가 없어 따로 표시.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">재현한 1주</span><h2>25번의 실행이 남긴 흔적</h2>
+      <p class="lede">지난 1주의 스냅샷을 되돌려 실제 파이프라인을 순서대로 다시 돌린 결과. 점 크기는 새로 만들거나 바뀐 페이지 수. 상태만 다시 읽은 실행은 바뀐 페이지가 0–2개에 그침.</p></div>
+    <div class="chart" id="week"></div>
+    <div class="legend"><span><i style="background:var(--ok)"></i>스케줄 실행</span><span><i style="background:var(--accent)"></i>수동 · 웹훅 실행</span><span><i style="background:var(--warn)"></i>부분 성공 (커넥터 장애 → 스냅샷 재사용)</span></div>
+    <div class="tblwrap">
+      <table class="tl">
+        <thead><tr><th>시각</th><th>무슨 일</th><th>페이지에 남은 변화</th></tr></thead>
+        <tbody>
+          <tr><td class="t">09-22 06:00</td><td>초기 적재</td><td>63개 신규 생성</td></tr>
+          <tr><td class="t">09-23 06:00</td><td>신규 DAG ctr_report_daily</td><td>DAG · 테이블 생성, reco.ranked_items의 "사용" 갱신</td></tr>
+          <tr><td class="t">09-24 06:00</td><td>DDL에 reco.users.segment 추가</td><td>테이블 컬럼 섹션 갱신</td></tr>
+          <tr><td class="t">09-24 11:20</td><td>Confluence 커넥터 타임아웃</td><td>실행 partial · 마지막 정상 스냅샷으로 런북 유지</td></tr>
+          <tr><td class="t">09-25 06:00</td><td>랭킹 SQL에 모델 레지스트리 조인</td><td>태스크 · 리니지 · SQL 섹션 갱신, 새 관계 추가</td></tr>
+          <tr><td class="t">09-26 14:10</td><td>런북 개정 (수동 실행)</td><td>롤백 · 공지 템플릿 섹션 추가</td></tr>
+          <tr><td class="t">09-27 10:05</td><td>Jira 웹훅 · INC-2330</td><td>장애 페이지 생성 · 근거 없는 문장 때문에 LLM 서술 거절</td></tr>
+          <tr><td class="t">09-29 06:00</td><td>랭킹 실패 · alias 전환 실패</td><td>상태 · 다운스트림 · 점검 섹션 갱신</td></tr>
+          <tr><td class="t">09-29 09:41</td><td>Jira 웹훅 · INC-2341 원자료(알림 · 슬랙) 첨부</td><td>장애 페이지 생성 · 6단계 파서로 근거 25조각 → 검증 통과 항목만 반영</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">판정</span><h2>다섯 가설 중 셋은 통과, 둘은 실데이터가 필요</h2></div>
+    <div class="hyp">
+      <div class="h"><span class="id">H1</span><p>코드 · API만으로 페이지 생성<small>65개 전부 · 같은 입력으로 재실행하면 변경 0건</small></p><span class="st ok">통과</span></div>
+      <div class="h"><span class="id">H3</span><p>드릴 시나리오 1–2<small>홈에서 클릭 1번 · 필요한 답이 한 화면</small></p><span class="st ok">통과</span></div>
+      <div class="h"><span class="id">H5</span><p>에이전트 호출 한 번<small>/api/context · MCP context 도구</small></p><span class="st ok">통과</span></div>
+      <div class="h"><span class="id">H4</span><p>LLM 서술 품질<small>인용 검사 · 거절 흐름만 검증, 실제 모델은 미연결</small></p><span class="st warn">흐름만</span></div>
+      <div class="h"><span class="id">H2</span><p>한국어 검색 품질<small>문서가 풍부해지자 기준 이탈 · 운영자 실제 질의로 재판정 필요</small></p><span class="st bad">미확정</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">가장 중요한 교훈 · H2</span><h2>데이터가 늘자 검색 점수가 흔들림</h2>
+      <p class="lede">질의 34개(한국어 28개). 1차는 문서 47개, 2차는 긴 런북과 지표 페이지가 들어온 65개. 세로축은 0.60부터 시작하며 점선이 합격 기준.</p></div>
+    <div class="pair">
+      <div class="chart" id="rec"></div>
+      <div class="chart" id="mrr"></div>
+    </div>
+    <div class="legend" id="h2legend"></div>
+    <div class="lesson">
+      <b>읽는 법</b>
+      <ul>
+        <li>긴 문서가 들어오자 "장애", "대응" 같은 일반어가 긴 문서 쪽으로 쏠림.</li>
+        <li>설계에 있던 섹션 단위 색인을 적용하자 FTS5 + nori만 기준을 회복.</li>
+        <li>실패 질의 다수는 정답 자체가 모호. "장애 대응 가이드"는 런북 7개 모두에 해당.</li>
+        <li>dummy 세트로는 우열을 가릴 수 없음. 운영자 질의 80–100개로만 판정 가능.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">결정 요청</span><h2>다음에 필요한 결정 다섯 가지</h2></div>
+    <div class="dec">
+      <div class="d-row primary"><span class="n">1</span><div><h3>R1 착수</h3><p>온콜 카탈로그 · LLM 없음 · 9–11 영업일</p></div><div class="rec"><b>승인 권장.</b> H1 · H3 · H5 통과, 남은 위험은 R1 안에서 측정 가능.</div></div>
+      <div class="d-row"><span class="n">2</span><div><h3>키워드 검색 기본값</h3><p>OpenSearch 전용 인덱스 vs SQLite FTS5</p></div><div class="rec">FTS5 + nori <code>_analyze</code>로 시작, 운영 서비스 추가 없음.<div class="need">필요: Q15 · _analyze 호출 권한</div></div></div>
+      <div class="d-row"><span class="n">3</span><div><h3>실데이터 읽기 전용 연결</h3><p>Airflow · 검색 엔진 · DDL 먼저</p></div><div class="rec">R1을 막는 요소라 가장 먼저 필요.<div class="need">필요: Q1 · Q2 · Q3 자격 증명</div></div></div>
+      <div class="d-row"><span class="n">4</span><div><h3>운영자 질의 수집</h3><p>H2 재판정의 유일한 근거</p></div><div class="rec">운영자 2명 × 1시간, 질의 80–100개.<div class="need">필요: 운영자 시간</div></div></div>
+      <div class="d-row"><span class="n">5</span><div><h3>GPT-OSS-120B 엔드포인트</h3><p>H4 골든 세트 평가</p></div><div class="rec">확보 전까지 <code>llm=off</code>로 R1 진행.<div class="need">필요: Q5 · 사내 엔드포인트 · 처리량</div></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="no">교체 가능한 부품</span><h2>오픈소스는 인터페이스 뒤에만</h2>
+      <p class="lede">데이터는 SQLite에만 둠. 어떤 부품을 바꿔도 재색인 한 번이면 끝. 위키 뷰어는 이미 한 번 바꿔 봤고 다른 모듈은 수정하지 않음.</p></div>
+    <div class="swap">
+      <div class="sw"><b>검색</b>OpenSearch nori ↔ FTS5 + nori</div>
+      <div class="sw"><b>리니지</b>sqlglot</div>
+      <div class="sw"><b>문서 변환</b>markitdown</div>
+      <div class="sw"><b>엔티티 매칭</b>pyahocorasick</div>
+      <div class="sw"><b>영향 범위</b>networkx → 재귀 CTE</div>
+      <div class="sw"><b>에이전트</b>MCP Python SDK</div>
+      <div class="sw"><b>LLM</b>openai SDK → httpx 직접 호출</div>
+      <div class="sw"><b>위키 뷰어</b>MkDocs → FastAPI + Jinja2<span class="done">교체 완료</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>상세 수치 · 커버리지 표: docs/mvp-poc.md §9 · 결정 기록: docs/decisions.md ADR-021</span>
+    <span>PoC 서버: tailnet 전용 · 포트 8443 · 홈, 검색, DAG 페이지, 지표, 관리자 실행 이력</span>
+    <span>모든 수치는 dummy 데이터 기준. LLM 요청 모델은 GPT-OSS-120B, 이 호스트에서는 로컬 대역 모델(qwen2.5:3b)이 응답하고 생성 이력에 실제 모델을 기록.</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; parent && parent.appendChild(e); return e; };
+
+  // 1주 실행: [시각, 잡, 상태, 트리거, 생성, 갱신, 메모]
+  const RUNS = [["09-22T06:00","full","success","schedule",63,0,"초기 적재"],["09-22T09:05","metrics","success","schedule",0,16,""],["09-23T06:00","full","success","schedule",1,31,""],["09-23T09:05","metrics","success","schedule",0,16,""],["09-24T06:00","full","success","schedule",0,27,""],["09-24T09:05","metrics","success","schedule",0,16,""],["09-24T11:20","full","partial","manual",0,7,"커넥터 타임아웃"],["09-25T06:00","full","success","schedule",0,17,""],["09-25T09:05","metrics","success","schedule",0,16,""],["09-26T06:00","full","success","schedule",0,16,""],["09-26T09:05","metrics","success","schedule",0,16,""],["09-26T14:10","full","success","manual",0,8,"런북 개정"],["09-27T06:00","full","success","schedule",0,13,""],["09-27T09:05","metrics","success","schedule",0,16,""],["09-27T10:05","full","success","webhook",1,9,"INC-2330"],["09-28T06:00","full","success","schedule",0,13,""],["09-28T09:05","metrics","success","schedule",0,16,""],["09-29T06:00","full","success","schedule",0,37,"랭킹 · alias 실패"],["09-29T07:00","status","success","schedule",0,2,""],["09-29T07:05","metrics","success","schedule",0,0,""],["09-29T08:00","status","success","schedule",0,2,""],["09-29T08:05","metrics","success","schedule",0,0,""],["09-29T08:59","status","success","schedule",0,8,""],["09-29T09:05","metrics","success","schedule",0,16,""],["09-29T09:41","full","success","webhook",1,20,"INC-2341"]];
+  const LANES = [["full", "전체 동기화"], ["status", "상태 갱신"], ["metrics", "지표 갱신"]];
+
+  function week() {
+    const box = document.getElementById('week'); box.innerHTML = '';
+    const W = 900, H = 210, L = 96, R = 20, T = 22, B = 34;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': '지난 1주 파이프라인 실행 25회' }, box);
+    const t0 = Date.parse('2026-09-22T00:00:00+09:00'), t1 = Date.parse('2026-09-30T00:00:00+09:00');
+    const x = t => L + (t - t0) / (t1 - t0) * (W - L - R);
+    const laneY = i => T + 20 + i * ((H - T - B - 20) / (LANES.length - 1));
+    for (let d = 0; d <= 8; d++) {
+      const xx = x(t0 + d * 864e5);
+      el('line', { x1: xx, x2: xx, y1: T, y2: H - B, stroke: css('--soft'), 'stroke-width': 1 }, svg);
+      if (d < 8) el('text', { x: xx + (x(t0 + 864e5) - x(t0)) / 2, y: H - 12, 'text-anchor': 'middle', 'font-size': 12 }, svg, `09-${22 + d}`);
+    }
+    LANES.forEach(([k, label], i) => {
+      el('line', { x1: L, x2: W - R, y1: laneY(i), y2: laneY(i), stroke: css('--line'), 'stroke-width': 1 }, svg);
+      el('text', { x: L - 10, y: laneY(i) + 4, 'text-anchor': 'end', 'font-size': 12 }, svg, label);
+    });
+    RUNS.forEach(r => {
+      const tt = Date.parse(`2026-${r[0]}:00+09:00`);
+      const lane = LANES.findIndex(l => l[0] === r[1]);
+      const n = r[4] + r[5];
+      const rad = 3 + Math.sqrt(n) * 1.25;
+      const color = r[2] === 'partial' ? css('--warn') : r[3] !== 'schedule' ? css('--accent') : css('--ok');
+      const c = el('circle', { cx: x(tt), cy: laneY(lane), r: rad.toFixed(1), fill: color, 'fill-opacity': .78, stroke: css('--paper'), 'stroke-width': 1.5 }, svg);
+      el('title', {}, c, `${r[0].replace('T', ' ')} · ${r[1]} · ${r[2]} · 생성 ${r[4]} · 갱신 ${r[5]}${r[6] ? ' · ' + r[6] : ''}`);
+      if (r[6]) el('text', { x: x(tt), y: laneY(lane) - rad - 6, 'text-anchor': 'middle', 'font-size': 11, fill: css('--ink') }, svg, r[6]);
+    });
+  }
+
+  // H2: [비교군, 1차, 2차 문서, 2차 청크]
+  const H2 = {
+    rec: { title: 'recall@5', target: .85, rows: [["OpenSearch nori", .882, .794, .779], ["FTS5 + nori", .873, .843, .858], ["바이그램 단독", .873, .828, .814]] },
+    mrr: { title: 'MRR@10', target: .70, rows: [["OpenSearch nori", .768, .690, .696], ["FTS5 + nori", .746, .727, .722], ["바이그램 단독", .746, .723, .682]] },
+  };
+  const ROUNDS = ['1차 · 47문서', '2차 · 문서', '2차 · 청크'];
+  const COLORS = () => [css('--faint'), css('--accent'), css('--warn')];
+
+  function bars(id) {
+    const d = H2[id], box = document.getElementById(id); box.innerHTML = '';
+    const W = 440, H = 260, L = 44, R = 12, T = 30, B = 44, lo = .6, hi = .9;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `${d.title} 비교` }, box);
+    svg.style.minWidth = '320px';
+    const y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+    el('text', { x: L, y: 16, 'font-size': 13, fill: css('--ink'), 'font-weight': 600 }, svg, `${d.title} · 점선 = 기준 ${d.target.toFixed(2)}`);
+    for (let v = .6; v <= .9001; v += .1) {
+      el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: css('--soft'), 'stroke-width': 1 }, svg);
+      el('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 11 }, svg, v.toFixed(2));
+    }
+    const gw = (W - L - R) / d.rows.length, bw = gw / 4.4;
+    d.rows.forEach((row, gi) => {
+      row.slice(1).forEach((v, ri) => {
+        const bx = L + gi * gw + gw * .12 + ri * (bw + 3);
+        const pass = v >= d.target;
+        const r = el('rect', { x: bx.toFixed(1), y: y(v).toFixed(1), width: bw.toFixed(1), height: (y(lo) - y(v)).toFixed(1), fill: COLORS()[ri], rx: 1.5 }, svg);
+        el('title', {}, r, `${row[0]} · ${ROUNDS[ri]} · ${v.toFixed(3)}${pass ? ' · 기준 통과' : ''}`);
+        el('text', { x: (bx + bw / 2).toFixed(1), y: (y(v) - 5).toFixed(1), 'text-anchor': 'middle', 'font-size': 10, fill: pass ? css('--ok') : css('--muted') }, svg, v.toFixed(2).slice(1));
+      });
+      el('text', { x: L + gi * gw + gw / 2, y: H - 22, 'text-anchor': 'middle', 'font-size': 11.5, fill: css('--ink') }, svg, row[0]);
+    });
+    el('line', { x1: L, x2: W - R, y1: y(d.target), y2: y(d.target), stroke: css('--bad'), 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }, svg);
+    el('text', { x: L, y: H - 6, 'font-size': 10.5 }, svg, '세로축 0.60–0.90');
+  }
+
+  function legend() {
+    const lg = document.getElementById('h2legend');
+    lg.innerHTML = ROUNDS.map((r, i) => `<span><i style="background:${COLORS()[i]}"></i>${r}</span>`).join('');
+  }
+
+
+  // 지식 합성: 관계 ↔ 코드 토큰 강조
+  document.querySelectorAll('.rels li').forEach(li => {
+    const on = v => document.querySelectorAll(`.tk[data-k="${li.dataset.k}"]`).forEach(t => t.classList.toggle('on', v));
+    li.addEventListener('mouseenter', () => { li.classList.add('on'); on(true); });
+    li.addEventListener('mouseleave', () => { li.classList.remove('on'); on(false); });
+  });
+  function funnel() {
+    const box = document.getElementById('funnel'); if (!box) return;
+    const rows = [["추출된 관계", 366, css('--accent')], ["원본에서 확인", 364, css('--ok')], ["계산된 관계", 2, css('--faint')], ["문서에 사용", 365, css('--ok')], ["원본 미확인", 0, css('--bad')]];
+    box.innerHTML = rows.map(([k, v, c]) => `<div class="fr"><span>${k}</span><span class="bar"><i style="width:${(v / 366 * 100).toFixed(2)}%;background:${c}"></i></span><b>${v}</b></div>`).join('');
+    const links = [["원자료에서 직접", 333, css('--accent')], ["그래프 탐색", 142, css('--ok')], ["이웃 경유", 53, css('--warn')], ["설정", 34, css('--faint')], ["원문 링크", 10, css('--muted')], ["근거 없음", 0, css('--bad')]];
+    document.getElementById('linkbar').innerHTML = links.filter(l => l[1]).map(([k, v, c]) => `<span title="${k} ${v}" style="width:${(v / 572 * 100).toFixed(2)}%;background:${c}"></span>`).join('');
+    document.getElementById('linklegend').innerHTML = '<span>문서 속 링크 572개의 출처</span>' + links.map(([k, v, c]) => `<span><i style="background:${c}"></i>${k} ${v}</span>`).join('');
+  }
+  function draw() { week(); bars('rec'); bars('mrr'); legend(); funnel(); }
+  draw();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
