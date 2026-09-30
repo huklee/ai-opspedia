@@ -30,6 +30,12 @@ sources:
 - kind: metrics_fixture
   name: prometheus
   path: dummy/metrics
+- kind: ops_csv
+  name: yunbin
+  path: dummy/yunbin
+  service: 3f
+  system: gpcc
+  team: ds2t
 - kind: manuals
   name: uploads
   path: data-lite/uploads
@@ -39,6 +45,10 @@ systems:
   title: Reco 추천 시스템
   team: reco-platform
   description: 피처 → 후보 생성 → 랭킹 → 피드 발행까지의 추천 배치 파이프라인과 검색 인덱스
+- id: gpcc
+  title: GPCC 카드 추천 (서비스 3f)
+  team: ds2t
+  description: 아이템 피처 → 후보 선택 → 상호작용 피처 → 후처리 · 전송까지의 카드 혜택 추천 배치와 행동 로그 집계 (yunbin 운영 메타데이터)
 - id: search
   title: 상품 검색
   team: search-infra
@@ -48,6 +58,10 @@ teams:
   title: 추천 플랫폼팀
   oncall: '@reco-oncall (PagerDuty: reco-primary)'
   channel: '#reco-ops'
+- id: ds2t
+  title: 데이터사이언스2팀 (ds2t)
+  oncall: '@ds2t-oncall'
+  channel: '#gpcc-ops'
 - id: search-infra
   title: 검색 인프라팀
   oncall: '@search-oncall (PagerDuty: search-primary)'
@@ -80,6 +94,9 @@ schema_systems:
   reco: reco
   search: search
   logs: search
+  wdp_bdp_db_dlk_l1_msk_view: gpcc
+  wdp_bdp_db_dlk_l2_msk_view: gpcc
+  wdp_bdp_db_dlk_l2_org: gpcc
 user_dictionary:
 - 추천배치
 - 피처스토어
@@ -108,6 +125,9 @@ aliases:
   랭킹 배치: dag:ranking_score_daily
   후보생성: dag:candidate_gen_hourly
   추천 CTR: metric:reco_ctr
+  카드 추천: system:gpcc
+  행동 로그: table:wdp_bdp_db_dlk_l1_msk_view.hcc_cust_bhve_data
+  추천 결과: table:wdp_bdp_db_dlk_l1_msk_view.ft_svc_f13_rec_result
   검색 무결과율: metric:search_zero_rate
 synonyms:
 - - 추천

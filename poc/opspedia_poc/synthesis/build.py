@@ -46,7 +46,7 @@ class Synthesizer:
         self.llm = llm
         self.env = Environment(loader=FileSystemLoader(TEMPLATES),
                                trim_blocks=True, lstrip_blocks=True, keep_trailing_newline=True)
-        self.env.filters.update(hm=_hm, icon=lambda s: STATE_ICON.get(s, "·"), level=lambda s: LEVEL_ICON.get(s, "·"))
+        self.env.filters.update(s3short=lambda p: "s3:…/" + "/".join(str(p).rstrip("/").split("/")[-2:]), hm=_hm, icon=lambda s: STATE_ICON.get(s, "·"), level=lambda s: LEVEL_ICON.get(s, "·"))
 
     # ---------- 1단계: 엔티티·사실·엣지 ----------
     def collect(self, items: list[RawItem]) -> tuple[dict[str, dict[str, Any]], list[Edge]]:
@@ -94,19 +94,33 @@ class Synthesizer:
             srcs = [it.origin] + ([r.origin] if r else [])
             ents[f"dag:{dag_id}"] = {"type": "dag", "title": dag_id, "system": system, "team": d.get("owner"),
                                      "facts": facts, "sources": srcs}
+            csv = d.get("source_kind") == "ops_csv"  # 운영 메타 CSV: 담당은 owner_team 열, 시스템은 sources[].system 설정
             if d.get("owner"):
-                add(Edge(f"dag:{dag_id}", "owned_by", f"team:{d['owner']}", it.origin), "ast · DAG default_args.owner", it, f'"owner": "{d["owner"]}"')
-            if system:
+                add(Edge(f"dag:{dag_id}", "owned_by", f"team:{d['owner']}", it.origin),
+                    "wf_task_master · owner_team 열" if csv else "ast · DAG default_args.owner", it, d["owner"] if csv else f'"owner": "{d["owner"]}"')
+            if system and csv and not cfg.dag_systems.get(dag_id):
+                add(Edge(f"dag:{dag_id}", "part_of", f"system:{system}", it.origin), f"설정 sources[{it.source}].system", None, f"system: {system}")
+            elif system:
                 add(Edge(f"dag:{dag_id}", "part_of", f"system:{system}", it.origin),
                     "설정 dag_systems" if cfg.dag_systems.get(dag_id) else "ast · DAG tags", None if cfg.dag_systems.get(dag_id) else it,
                     f"{dag_id}: {system}" if cfg.dag_systems.get(dag_id) else f'"{system}"')
             for t in d["tasks"]:
                 src = f"{it.origin.split('@')[0]}:{t['line']}"
                 tail = "\n".join(d["raw"].splitlines()[t["line"] - 1:])  # 태스크 정의부터 검색
+                mapped = t.get("lineage") == "task_data_mapping"
+                raw_code = d.get("raw") or ""
+
+                def surf(name: str) -> str:  # 원문에 전체 이름이 없으면(CSV 는 db,table 분리) 테이블 이름으로 대조
+                    return name if name.lower() in raw_code.lower() else name.rsplit(".", 1)[-1]
                 for tb in t.get("reads", []):
-                    add(Edge(f"dag:{dag_id}", "reads", f"table:{tb}", src), f"sqlglot 리니지 · {t['task_id']} SQL FROM/JOIN", it, tb, raw=None)
+                    add(Edge(f"dag:{dag_id}", "reads", f"table:{tb}", src),
+                        f"task_data_mapping · {t['task_id']} input" if mapped else f"sqlglot 리니지 · {t['task_id']} SQL FROM/JOIN", it, surf(tb))
                 for tb in t.get("writes", []):
-                    add(Edge(f"dag:{dag_id}", "writes", f"table:{tb}", src), f"sqlglot 리니지 · {t['task_id']} INSERT 대상", it, tb)
+                    add(Edge(f"dag:{dag_id}", "writes", f"table:{tb}", src),
+                        f"task_data_mapping · {t['task_id']} output" if mapped else f"sqlglot 리니지 · {t['task_id']} INSERT 대상", it, surf(tb))
+                for up in t.get("upstream_dags", []):
+                    add(Edge(f"dag:{dag_id}", "depends_on", f"dag:{up['dag']}", src),
+                        f"task_data_mapping · {t['task_id']} 가 {up['dag']} 산출 S3 경로를 입력", it, up["via"])
                 if t.get("external_dag_id"):
                     add(Edge(f"dag:{dag_id}", "depends_on", f"dag:{t['external_dag_id']}", src), f"ast · ExternalTaskSensor({t['task_id']})", it, t["external_dag_id"])
                 if t.get("operator") == "AliasSwapOperator" and t.get("alias"):
@@ -124,7 +138,7 @@ class Synthesizer:
             ents[f"table:{t['name']}"] = {"type": "table", "title": t["name"], "system": system,
                                           "team": cfg.system(system).get("team"), "facts": t, "sources": [it.origin]}
             if system:
-                add(Edge(f"table:{t['name']}", "part_of", f"system:{system}", it.origin), "규칙 · 스키마 접두사 (schema_systems)", it, t["name"])
+                add(Edge(f"table:{t['name']}", "part_of", f"system:{system}", it.origin), "규칙 · 스키마 접두사 (schema_systems)", it, t["name"].split(".")[0])
 
         for it in by_kind["index_meta"]:
             meta = it.payload

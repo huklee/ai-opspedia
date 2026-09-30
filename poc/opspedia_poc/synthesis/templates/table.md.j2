@@ -31,6 +31,24 @@
 - 컬럼 정보 없음
 {% endif %}
 
+{% if f.load %}{% set l = f.load %}
+## 적재 · 품질
+
+| 항목 | 값 |
+|---|---|
+| 원천 담당 · 파티션 규칙 | {{ f.source_owner or '—' }} · {{ f.partition_rule or '—' }} |
+| 적재 행 수 ({{ l.days }}일) | 최신 {{ '{:,.0f}'.format(l.latest) }} ({{ l.latest_dt }}) · 중앙값 {{ '{:,.0f}'.format(l.median) }} · 최소 {{ '{:,.0f}'.format(l.min) }} |
+| 급감 (중앙값 50 % 미만) | {% for d_ in l.drops %}{{ d_.base_dt }} {{ '{:,.0f}'.format(d_.rows) }} ({{ '%.0f' % (d_.ratio * 100) }}%){{ ' · ' if not loop.last }}{% else %}없음{% endfor %} |
+
+{% if f.quality %}
+| 지표 | 컬럼 | 중앙값 | 최신 | 최소 · 최대 |
+|---|---|---|---|---|
+{% for q in f.quality %}
+| {{ q.metric }} | `{{ q.col }}` | {{ '{:,.0f}'.format(q.median) }} | {{ '{:,.0f}'.format(q.latest) }} | {{ '{:,.0f}'.format(q.min) }} · {{ '{:,.0f}'.format(q.max) }} |
+{% endfor %}
+{% endif %}
+
+{% endif %}
 ## 적재 · 사용
 
 - 적재(writes): {% for w in writers %}{{ link(w) }} {{ status_of(w) }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}

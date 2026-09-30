@@ -58,7 +58,7 @@
 </div>
 
 {% if sv %}{% set tr = sv.entities or {} %}{% set sm = tr.summary or {} %}
-<h2 class="h">⏱️ 단계별 소요 <small class="muted">실행 {{ cur.run_id }}</small></h2>
+<h2 class="h" id="timing">⏱️ 단계별 소요 <small class="muted">실행 {{ cur.run_id }}</small></h2>
 <div class="wf">
 {% set acc = namespace(v=0) %}
 {% for st in steps %}
@@ -74,7 +74,7 @@
   {% if tm.stages %}<div class="prop"><span class="pk"><span>🧪</span>장애 6단계</span><span class="pv">{% for x in tm.stages %}<span class="chip">{{ x.name }} {{ '%.1f' % x.ms }} ms</span> {% endfor %}</span></div>{% endif %}
 </div>
 
-<h2 class="h">🧩 엔티티 추출 추적</h2>
+<h2 class="h" id="trace">🧩 엔티티 추출 추적</h2>
 <div class="kpis ent">
   <div class="kpi"><b>{{ sm.extracted or 0 }}</b><small>추출된 관계</small></div>
   <div class="kpi"><b>{{ sm.in_raw or 0 }}</b><small>원본에서 표면형 확인{% if sm.computed %} · 계산 {{ sm.computed }}{% endif %}{% if sm.not_in_raw %} · <span class="del">미확인 {{ sm.not_in_raw }}</span>{% endif %}</small></div>

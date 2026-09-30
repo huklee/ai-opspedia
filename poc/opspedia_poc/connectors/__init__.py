@@ -216,7 +216,10 @@ class MetricsFixture:
                           f"prometheus:query_range{{id=\"{m['id']}\"}}#{_sha(json.dumps(vals).encode())}")
 
 
+from .ops_csv import OpsMetaCsv  # noqa: E402
+
 CONNECTORS = {
+    "ops_csv": OpsMetaCsv,
     "incident_bundles": IncidentBundles,
     "metrics_fixture": MetricsFixture,
     "dag_repo": DagRepo,

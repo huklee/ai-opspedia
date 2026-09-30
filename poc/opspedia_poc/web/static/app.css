@@ -318,3 +318,8 @@ h2 .n, .gtabs .n { margin-left: 4px; }
 .undo input:not([type]) { width: 100%; margin: 6px 0; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: var(--bg); color: var(--fg); font: 14px var(--font); }
 .cand { display: block; margin: 4px 0; font-size: 13px; }
 
+.gen-filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 8px; }
+.gen-filter button.chip { border: 1px solid var(--line); cursor: pointer; color: inherit; }
+.gen-filter button.chip.on { border-color: currentColor; font-weight: 500; }
+.gen-filter input { margin-left: auto; padding: 3px 8px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; min-width: 0; }
+.tbl.gen .ok { color: var(--ok); } .tbl.gen .bad { color: var(--bad); }
