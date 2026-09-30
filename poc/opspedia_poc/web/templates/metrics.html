@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% set active = 'metrics' %}
+{% block title %}서비스 지표{% endblock %}
+{% block body %}
+<div class="page-ico">📈</div>
+<h1 class="ptitle">서비스 중요 지표</h1>
+<p class="lead">카테고리별 SLO · 7일 추세 · 이상 탐지 · <code>metrics-hourly</code> 파이프라인이 매시 5분에 갱신</p>
+{% for c in cats %}
+<h2 class="h"><a href="/e/{{ c.id }}">{{ c.facts.icon }} {{ c.title }}</a> {% if c.facts.breaches %}<span class="chip bad">위반 {{ c.facts.breaches }}</span>{% else %}<span class="chip ok">정상</span>{% endif %}<small class="muted"> · {{ c.facts.description }}</small></h2>
+<div class="cards mcards">
+{% for mm in c.facts.metrics %}{% set md = metrics.get('metric:' ~ mm.id) %}
+  <a class="card mcard {{ mm.eval.state }}" href="/e/metric:{{ mm.id }}">
+    <div class="mc-t">{{ mm.eval.icon }} {{ mm.title }}</div>
+    <div class="mc-v">{{ mm.eval.latest_fmt }}{% if mm.eval.delta_pct is not none %}<small class="{{ 'up' if mm.eval.delta_good else 'down' }}">{{ '%+.1f' % mm.eval.delta_pct }}%</small>{% endif %}</div>
+    {{ sparkline(mm.eval.points, md.facts.slo.value if md else None, 220, 44, mm.eval.state in ['breach','nodata'])|safe }}
+    <div class="mc-f">SLO {{ mm.eval.slo_fmt }} · {{ mm.eval.reason }}</div>
+  </a>
+{% endfor %}
+</div>
+{% endfor %}
+
+<h2 class="h">🔄 지표 파이프라인 최근 실행</h2>
+<div class="pipe">
+  <div class="pipe-s">📥 Prometheus · 웨어하우스 수집</div><span>→</span>
+  <div class="pipe-s">🧮 7일 평균 · 변화율</div><span>→</span>
+  <div class="pipe-s">🎯 SLO 판정</div><span>→</span>
+  <div class="pipe-s">🚩 3σ 이상 탐지</div><span>→</span>
+  <div class="pipe-s">📝 지표 · 카테고리 페이지</div><span>→</span>
+  <div class="pipe-s">🔎 재색인</div>
+</div>
+<table class="tbl">
+<thead><tr><th>상태</th><th>실행</th><th>트리거</th><th>시작</th><th>갱신</th><th>동일</th></tr></thead>
+<tbody>
+{% for r in runs %}
+<tr><td>{{ '✅' if r.status == 'success' else '⚠️' }}</td><td><a href="/admin/runs/{{ r.id }}"><code>{{ r.id }}</code></a></td><td>{{ TRIGGER.get(r.trigger, r.trigger) }}</td><td>{{ when(r.started_at) }}</td><td>{{ r.stats.updated or 0 }}</td><td>{{ r.stats.unchanged or 0 }}</td></tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% set active = 'home' %}
+{% block title %}홈{% endblock %}
+{% block body %}
+<div class="page-ico">🏠</div>
+<h1 class="ptitle">운영 홈</h1>
+<p class="lead">추천 배치 · 검색 인덱스 운영 현황 · 원천 스냅샷 {{ when(svc.cfg.now) }} 기준{% set lr = svc.repo.last_run() %}{% if lr %} · 마지막 파이프라인 <a href="/admin/runs/{{ lr.id }}">{{ when(lr.finished_at) }}</a>{% endif %}</p>
+
+<h2 class="h">🕘 최근 본 페이지</h2>
+<div id="recent" class="cards small">
+  <div class="empty">아직 본 페이지 없음 · 아래 항목부터 둘러보기</div>
+</div>
+
+<div class="cols">
+  <section>
+    <h2 class="h">🚨 지금 확인이 필요한 항목 <span class="n">{{ alerts|length }}</span></h2>
+    <div class="list">
+    {% for d in alerts %}
+      <a class="row" href="/e/{{ d.id }}">
+        <span class="ri">{{ d.facts.status_icon }}</span>
+        <span class="rt"><b>{{ ICON[d.type] }} {{ d.title }}</b>
+          <small>{% if d.type == 'index' %}{{ d.facts.health.checks[0].msg }}{% elif d.type == 'metric' %}{{ d.facts.eval.latest_fmt }} · {{ d.facts.eval.reason }}{% else %}{{ (d.facts.runs or [{}])[0].state }} · 다운스트림 {{ d.facts.downstream|length }}개{% endif %}</small></span>
+        <span class="tag">{{ TYPE_LABEL[d.type] }}</span>
+      </a>
+    {% endfor %}
+    </div>
+  </section>
+  <section>
+    <h2 class="h">✏️ 최근 업데이트</h2>
+    <div class="timeline">
+    {% if mrun %}<a class="tl" href="/admin/runs/{{ mrun.id }}"><span class="tl-ico">📈</span><span class="tl-b"><b>서비스 지표 {{ mrun.stats.updated or 0 }}개 갱신</b><small>metrics-hourly · SLO 판정 · 이상 탐지</small></span><span class="tl-t">{{ ago(mrun.finished_at) }}<small>매시 5분</small></span></a>{% endif %}
+    {% for u in updates %}
+      <a class="tl" href="/e/{{ u.doc_id }}/history?v={{ u.version }}">
+        <span class="tl-ico">{{ ICON[u.type] }}</span>
+        <span class="tl-b"><b>{{ u.title }}</b><small>{{ u.change_note }}</small></span>
+        <span class="tl-t">{{ ago(u.created_at) }}<small>v{{ u.version }}</small></span>
+      </a>
+    {% endfor %}
+    </div>
+  </section>
+</div>
+
+<h2 class="h">📈 중요 지표 <a class="more" href="/metrics">전체 보기 →</a></h2>
+<div class="cards cats">
+{% for c in cats %}
+  <a class="card cat" href="/e/{{ c.id }}">
+    <div class="cat-h"><span class="cat-ico">{{ c.facts.icon }}</span><b>{{ c.title }}</b>
+      {% if c.facts.breaches %}<span class="chip bad">위반 {{ c.facts.breaches }}</span>{% else %}<span class="chip ok">정상</span>{% endif %}</div>
+    {% for mm in c.facts.metrics %}{% set md = metrics.get('metric:' ~ mm.id) %}
+    <div class="mrow">
+      <span class="mn">{{ mm.eval.icon }} {{ mm.title }}</span>
+      <span class="ms">{{ sparkline(mm.eval.points, md.facts.slo.value if md else None, 90, 24, mm.eval.state in ['breach','nodata'])|safe }}</span>
+      <span class="mv">{{ mm.eval.latest_fmt }}{% if mm.eval.delta_pct is not none %}<small class="{{ 'up' if mm.eval.delta_good else 'down' }}">{{ '%+.1f' % mm.eval.delta_pct }}%</small>{% endif %}</span>
+    </div>
+    {% endfor %}
+  </a>
+{% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}<script>opsRecent('recent');</script>{% endblock %}

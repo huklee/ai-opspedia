@@ -1,0 +1,140 @@
+{% extends "base.html" %}{% set d_id = d.id %}
+{% block title %}{{ d.title }} · 생성 이력{% endblock %}
+{% block wide %}wide{% endblock %}
+{% block body %}{% set blocks_active = svc.repo.blocks() | selectattr('doc_id', 'equalto', d.id) | list %}
+{% if blocks_active %}<div class="admonition warning"><p class="admonition-title">원자료 차단 중 {{ blocks_active|length }}건</p><p>{% for b in blocks_active %}<code>{{ b.source }}/{{ b.key }}#{{ b.hash }}</code> — {{ b.reason }} ({{ b.actor }}, {{ when(b.at) }}) {% endfor %}· <a href="/admin#blocks">관리</a></p></div>{% endif %}
+<div class="crumbs"><a href="/e/{{ d.id }}">{{ ICON[d.type] }} {{ d.title }}</a><span class="sep">/</span><span class="cur">생성 이력</span></div>
+<div class="page-ico">📜</div>
+<h1 class="ptitle">{{ d.title }} <small class="muted">생성 이력</small></h1>
+
+<h2 class="h">⚙️ 이 페이지가 만들어지는 방식</h2>
+<div class="pipe">
+  {% for s in d.sources %}<div class="pipe-s">📥 <code>{{ s }}</code></div>{% endfor %}<span>→</span>
+  <div class="pipe-s">🧩 엔티티 · 엣지 <small>파서 · 레지스트리 매칭</small></div><span>→</span>
+  <div class="pipe-s">📝 <code>{{ d.gen.template }}</code><small>결정적 렌더러 @{{ d.gen.template_hash }}</small></div>
+  {% if d.gen.llm and d.gen.llm.status not in [None, 'off'] %}<span>→</span><div class="pipe-s">🤖 요청 {{ d.gen.llm.requested or d.gen.llm.model }}{% if d.gen.llm.used and d.gen.llm.used != d.gen.llm.requested %} → 실제 {{ d.gen.llm.used }}{% endif %}<small>{{ d.gen.llm.detail }}{% if d.gen.llm.fallback_reason %} · 대역 사유: {{ d.gen.llm.fallback_reason }}{% endif %}</small></div>{% endif %}
+  <span>→</span><div class="pipe-s">🗄️ SQLite v{{ d.version }}</div>
+</div>
+
+{% if d.facts.synthesis %}{% include "_synthesis.html" %}{% endif %}
+
+<div class="hcols">
+<section>
+<h2 class="h">🕘 버전 <span class="n">{{ versions|length }}</span></h2>
+<div class="vlist">
+{% for x in versions %}
+  <a class="vrow {{ 'on' if x.version == v }}" href="?v={{ x.version }}">
+    <b>v{{ x.version }}</b><span>{{ when(x.created_at) }} · {{ JOBS[x.job].icon if x.job in JOBS }} {{ TRIGGER.get(x.trigger, '') }}</span><small>{{ x.change_note }}</small>
+  </a>
+{% endfor %}
+</div>
+</section>
+<section>
+<h2 class="h">🔀 v{{ v }} 변경 내용 {% if cur %}<a class="more" href="/admin/runs/{{ cur.run_id }}">실행 {{ cur.run_id }} →</a>{% endif %}</h2>
+{% if v == d.version %}
+<details class="undo" id="undo" data-id="{{ d.id }}"><summary>↩️ 이 버전 되돌리기 (잘못 수집 · 합성된 경우)</summary>
+  <p class="muted small">{% if d.version == 1 %}v1 을 되돌리면 문서가 삭제됨.{% else %}v{{ d.version - 1 }} 내용을 v{{ d.version + 1 }} 로 복원.{% endif %}
+  원자료를 차단하지 않으면 다음 파이프라인 실행에서 같은 내용이 다시 반영됨.</p>
+  <input id="undo-reason" placeholder="사유 (예: DDL 오타가 잘못 수집됨)">
+  <div id="undo-cands" class="muted small">원인 후보 원자료 불러오는 중…</div>
+  <button class="btn bad" id="undo-go" type="button">되돌리기</button> <span id="undo-msg" class="small"></span>
+</details>
+{% endif %}
+{% set s = syn_by_v.get(v) %}
+{% if s %}
+<div class="props">
+  <div class="prop"><span class="pk"><span>📌</span>바뀐 섹션</span><span class="pv">{{ s.sections|join(', ') }} <span class="add">+{{ s.added }}</span> <span class="del">−{{ s.removed }}</span></span></div>
+  <div class="prop"><span class="pk"><span>📝</span>템플릿</span><span class="pv"><code>{{ s.template }}</code></span></div>
+  <div class="prop"><span class="pk"><span>📥</span>입력</span><span class="pv">{% for i in s.inputs %}<code>{{ i }}</code> {% endfor %}</span></div>
+  {% if s.llm and s.llm.status not in [None, 'off'] %}<div class="prop"><span class="pk"><span>🤖</span>LLM</span><span class="pv"><span class="chip {{ 'ok' if s.llm.status == 'ok' else 'warn' }}">{{ s.llm.status }}</span> {{ s.llm.detail }}</span></div>{% endif %}
+</div>
+{% endif %}
+{% if prev %}
+<details class="fold" open><summary>본문 diff (v{{ v - 1 }} → v{{ v }})</summary>
+<pre class="diff">{% for kind, line in lines %}<span class="{{ kind }}">{{ line }}</span>{% endfor %}</pre></details>
+{% else %}<p class="muted">첫 버전 — 신규 생성</p>
+<pre class="diff">{% for line in cur.markdown.splitlines() %}<span class="add">+{{ line }}</span>{% endfor %}</pre>{% endif %}
+</section>
+</div>
+
+{% if sv %}{% set tr = sv.entities or {} %}{% set sm = tr.summary or {} %}
+<h2 class="h">⏱️ 단계별 소요 <small class="muted">실행 {{ cur.run_id }}</small></h2>
+<div class="wf">
+{% set acc = namespace(v=0) %}
+{% for st in steps %}
+  <div class="wf-r {{ st.status }}"><span class="wf-l">{{ STAGE_LABEL.get(st.stage, st.stage) }} <code>{{ st.target }}</code></span>
+  <span class="wf-bar"><i style="left:{{ '%.2f' % (acc.v / total_ms * 100) }}%;width:{{ '%.2f' % ([st.ms / total_ms * 100, 0.6]|max) }}%"></i></span>
+  <span class="wf-ms">{{ '%.1f' % st.ms }} ms</span><span class="wf-m">{{ st.message }}</span></div>{% set acc.v = acc.v + st.ms %}
+{% endfor %}
+</div>
+{% set tm = sv.timing or {} %}
+<div class="props">
+  <div class="prop"><span class="pk"><span>📝</span>이 문서 렌더링</span><span class="pv">{{ tm.render_ms or 0 }} ms <span class="muted">· 템플릿 {{ sv.template }}</span></span></div>
+  {% if sv.llm and sv.llm.status not in [None, 'off'] %}<div class="prop"><span class="pk"><span>🤖</span>LLM</span><span class="pv">{{ '%.0f' % (tm.llm_ms or sv.llm.ms or 0) }} ms{% if sv.llm.cached %} <span class="chip">캐시 적중 · 최초 호출 소요</span>{% endif %} · 요청 <b>{{ sv.llm.requested or sv.llm.model }}</b>{% if sv.llm.used and sv.llm.used != sv.llm.requested %} → 실제 응답 <b>{{ sv.llm.used }}</b> <span class="chip warn">대역</span>{% endif %}{% if sv.llm.fallback_reason %} <span class="muted">({{ sv.llm.fallback_reason }})</span>{% endif %}</span></div>{% endif %}
+  {% if tm.stages %}<div class="prop"><span class="pk"><span>🧪</span>장애 6단계</span><span class="pv">{% for x in tm.stages %}<span class="chip">{{ x.name }} {{ '%.1f' % x.ms }} ms</span> {% endfor %}</span></div>{% endif %}
+</div>
+
+<h2 class="h">🧩 엔티티 추출 추적</h2>
+<div class="kpis ent">
+  <div class="kpi"><b>{{ sm.extracted or 0 }}</b><small>추출된 관계</small></div>
+  <div class="kpi"><b>{{ sm.in_raw or 0 }}</b><small>원본에서 표면형 확인{% if sm.computed %} · 계산 {{ sm.computed }}{% endif %}{% if sm.not_in_raw %} · <span class="del">미확인 {{ sm.not_in_raw }}</span>{% endif %}</small></div>
+  <div class="kpi"><b>{{ sm.used or 0 }}</b><small>문서에 실제 사용</small></div>
+  <div class="kpi"><b>{{ sm.links or 0 }}</b><small>문서 속 링크 · 근거 없음 <span class="{{ 'del' if sm.links_none else 'add' }}">{{ sm.links_none or 0 }}</span></small></div>
+</div>
+<div class="tblwrap"><table class="tbl mini trace">
+<thead><tr><th>방향</th><th>엔티티</th><th>관계</th><th>추출 방법</th><th>원본 위치</th><th>원문 발췌</th><th>원본 존재</th><th>문서 사용</th></tr></thead>
+<tbody>
+{% for r in tr.records or [] %}
+<tr>
+  <td>{{ '→' if r.direction == 'out' else '←' }}</td>
+  <td><a href="/e/{{ r.entity }}">{{ ICON.get(r.entity.split(':')[0], '') }} {{ svc.docs[r.entity].title if r.entity in svc.docs else r.entity }}</a></td>
+  <td><code>{{ r.rel }}</code></td>
+  <td>{{ r.method }}</td>
+  <td class="mono small">{{ r.raw.source }}<br>{{ r.locator }}</td>
+  <td class="snip">{% if r.snippet %}{{ hl(r.snippet, r.surface)|safe }}{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td>{% if r.in_raw is none %}<span class="chip">계산</span>{% elif r.in_raw %}<span class="chip ok">있음</span>{% else %}<span class="chip bad">없음</span>{% endif %}</td>
+  <td>{% if r.used == 'link' %}<span class="chip ok">링크</span>{% elif r.used == 'mention' %}<span class="chip">언급</span>{% else %}<span class="chip warn">미사용</span>{% endif %} <span class="muted small">{{ r.sections|join(', ') }}</span></td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+
+<h2 class="h">🔗 문서 속 링크의 출처</h2>
+<div class="chips">{% for l in tr.links or [] %}<a class="chip {{ PROV[l.provenance][1] }}" href="/e/{{ l.id }}" title="{{ PROV[l.provenance][0] }} · {{ l.sections|join(', ') }}">{{ svc.docs[l.id].title if l.id in svc.docs else l.id }} · {{ PROV[l.provenance][0] }}</a>{% endfor %}</div>
+
+<h2 class="h">📦 원본 데이터 <small class="muted">v{{ v }} 를 만든 원자료 {{ raws|length }}건 · 강조 = 추출된 엔티티 표면형</small></h2>
+{% for rp in raws %}
+<details class="fold raw" {{ 'open' if loop.first }}><summary><span class="chip">{{ rp.kind }}</span> <code>{{ rp.source }}/{{ rp.key }}</code> <span class="muted small">#{{ rp.hash }} · 수집 {{ when(rp.seen_at) }} · 추출 {{ rp.surfaces|length }}개</span></summary>
+<pre class="diff rawtext"><span class="ctx">{{ rp.html|safe }}</span></pre></details>
+{% else %}<p class="muted">원자료 기록 없음 (설정 기반 페이지)</p>{% endfor %}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if d.facts.synthesis %}{% include "_synthesis_js.html" %}{% endif %}
+<script>
+(function () {
+  const box = document.getElementById('undo'); if (!box) return;
+  const id = box.dataset.id, esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let cands = [];
+  box.addEventListener('toggle', () => {
+    if (!box.open || cands.length) return;
+    fetch('/api/pages/' + id + '/undo-candidates').then(r => r.json()).then(list => {
+      cands = list;
+      document.getElementById('undo-cands').innerHTML = list.length ? '<b>차단할 원자료</b> (다음 수집부터 직전 원자료로 대체)<br>' + list.map((r, i) =>
+        `<label class="cand"><input type="checkbox" data-i="${i}" ${r.changed && r.own ? 'checked' : ''}> <code>${esc(r.source)}/${esc(r.key)}#${esc(r.hash)}</code> ${r.changed ? '<span class="chip warn">이번 버전에서 바뀜</span>' : '<span class="chip">변경 없음</span>'}${r.own ? '' : ' <span class="muted">(다른 문서 원자료)</span>'}</label>`).join('') : '원자료 기록 없음';
+    });
+  });
+  const go = document.getElementById('undo-go');
+  go.addEventListener('click', () => {
+    if (go.dataset.armed !== '1') { go.dataset.armed = '1'; go.textContent = '한 번 더 누르면 실행'; return; }
+    const block = [...box.querySelectorAll('input[type=checkbox]:checked')].map(c => cands[+c.dataset.i]);
+    go.disabled = true;
+    fetch('/api/pages/' + id + '/undo', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
+      body: JSON.stringify({ reason: document.getElementById('undo-reason').value, block }) })
+      .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.detail); return j; })
+      .then(j => { document.getElementById('undo-msg').textContent = `완료: v${j.from_version} → ${j.action === 'deleted' ? '문서 삭제' : 'v' + j.new_version + ' 복원'} · 차단 ${j.blocked.length}건`;
+                   setTimeout(() => location.href = j.action === 'deleted' ? '/admin' : location.pathname, 1200); })
+      .catch(e => { document.getElementById('undo-msg').textContent = '실패: ' + e.message; go.disabled = false; });
+  });
+})();
+</script>
+{% endblock %}

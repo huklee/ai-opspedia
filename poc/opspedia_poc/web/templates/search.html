@@ -1,0 +1,54 @@
+{% extends "base.html" %}{% set active = 'search' %}
+{% block title %}{{ q or '검색' }}{% endblock %}
+{% block wide %}wide{% endblock %}
+{% block body %}
+<nav class="gtabs">
+  {% for key, label in tabs %}
+  <a class="{{ 'on' if tab == key }}" href="/search?q={{ q|urlencode }}{% if key != 'all' %}&tab={{ key }}{% endif %}">{{ ICON.get(key, '🗂️') if key != 'all' else '🔎' }} {{ label }}{% if q %} <span class="n">{{ counts.get(key, 0) }}</span>{% endif %}</a>
+  {% endfor %}
+</nav>
+{% if not q %}
+  <div class="gempty">
+    <div class="glogo">📚 ai-opspedia</div>
+    <p>한국어 형태소 분석(nori) · 식별자 · 동의어 확장 검색</p>
+    <div class="gex">{% for ex in ['추천 피드 미갱신', 'alias 전환 실패', 'feature_store_daily', '피처스토어 백필', '검색 무결과율', '레플리카 미할당'] %}<a href="/search?q={{ ex|urlencode }}">{{ ex }}</a>{% endfor %}</div>
+  </div>
+{% else %}
+<div class="gwrap">
+  <div class="gres">
+    {% if tab == 'all' %}
+    <div id="aibox" class="aibox" data-q="{{ q }}" data-auto="{{ 1 if natural else 0 }}">
+      {% if natural %}<div class="ai-h">✨ AI 답변 <span class="muted">질의 해석 · 검색 · 답변 생성 중…</span></div><div class="ai-skel"><i></i><i></i><i></i></div>
+      {% else %}<button class="ai-go" type="button">✨ AI 답변 보기 <span class="muted">자연어로 정리</span></button>{% endif %}
+    </div>
+    {% endif %}
+    <div class="gstat">검색결과 약 {{ counts.get(tab, 0) }}개 ({{ '%.2f' % took }}초) · {{ backend }} nori</div>
+    {% for r in results %}
+    <div class="gr">
+      <div class="gcrumb"><span class="gfav">{{ ICON[r.type] }}</span>{{ r.crumbs|join(' › ') }}</div>
+      <a class="gt" href="{{ r.url }}">{{ r.status + ' ' if r.status }}{{ r.title }}</a>
+      <div class="gs">{{ r.snippet_html|safe }}</div>
+      <div class="gmeta">{{ TYPE_LABEL[r.type] }}{% if r.system %} · {{ r.system }}{% endif %} · 출처 <code>{{ r.citation[0] }}</code></div>
+    </div>
+    {% else %}
+    <div class="gnone"><b>{{ q }}</b>에 대한 결과 없음{% if tab != 'all' %} · <a href="/search?q={{ q|urlencode }}">전체 탭에서 보기</a>{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% if panel %}{% set c = panel.ctx %}{% set pd = panel.doc %}
+  <aside class="kpanel">
+    <div class="kp-h"><span class="kp-ico">{{ ICON[pd.type] }}</span><div><b>{{ pd.title }}</b><small>{{ TYPE_LABEL[pd.type] }}{% if pd.system %} · {{ pd.system }}{% endif %}</small></div></div>
+    <div class="kp-s">{{ c.summary|replace('- ', '')|replace('`', '')|truncate(220) }}</div>
+    <dl class="kp-dl">
+      <dt>상태</dt><dd>{{ c.status.icon or '—' }} {% if c.status.last_run %}{{ c.status.last_run.state }}{% elif c.status.level %}{{ c.status.level }}{% endif %}</dd>
+      {% if c.oncall.oncall %}<dt>온콜</dt><dd>{{ c.oncall.oncall }} · {{ c.oncall.channel }}</dd>{% endif %}
+      {% if c.downstream %}<dt>다운스트림</dt><dd>{{ c.downstream|length }}개 · {% for x in c.downstream[:3] %}<a href="{{ x.url }}">{{ x.title }}</a>{{ ', ' if not loop.last }}{% endfor %}</dd>{% endif %}
+      {% if c.incidents %}<dt>알려진 장애</dt><dd>{% for x in c.incidents[:2] %}<a href="{{ x.url }}">{{ x.title }}</a><br>{% endfor %}</dd>{% endif %}
+      {% if c.runbooks %}<dt>런북</dt><dd>{% for x in c.runbooks[:3] %}<a href="{{ x.url }}">📕 {{ x.title }}</a><br>{% endfor %}</dd>{% endif %}
+    </dl>
+    <a class="kp-more" href="/e/{{ pd.id }}">페이지 열기 →</a>
+  </aside>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>opsAsk('aibox');</script>{% endblock %}

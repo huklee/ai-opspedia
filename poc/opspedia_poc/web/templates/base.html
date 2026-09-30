@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ai-opspedia{% endblock %} · ai-opspedia</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+</head>
+<body>
+<aside class="side" id="side">
+  <a class="ws" href="/"><span class="ws-ico">ao</span><span><b>ai-opspedia</b><small>운영 백과사전 · PoC</small></span></a>
+  <nav class="quick">
+    <a href="/" class="{{ 'on' if active == 'home' }}">홈</a>
+    <a href="/search" class="{{ 'on' if active == 'search' }}">검색 <kbd>⌘K</kbd></a>
+    <a href="/metrics" class="{{ 'on' if active == 'metrics' }}">서비스 지표</a>
+    <a href="/admin" class="{{ 'on' if active == 'admin' }}">관리자 · 실행 이력</a>
+    <a href="/admin/upload" class="{{ 'on' if active == 'upload' }}">문서 업로드</a>
+  </nav>
+  {% macro st(d) %}{% set i = d.facts.status_icon %}{% if i in ['🔴', '❌'] %}<span class="sd bad"></span>{% elif i in ['⛔', '⚠️'] %}<span class="sd warn"></span>{% endif %}{% endmacro %}
+  <div class="sec">시스템</div>
+  {% for s, groups in tree.systems %}
+  <details class="tg" data-k="sys-{{ s.id }}" open>
+    <summary><a href="/e/{{ s.id }}">{{ s.title }}</a></summary>
+    {% for t, items in groups %}
+    <details class="tg sub" data-k="{{ s.id }}-{{ t }}">
+      <summary>{{ TYPE_LABEL[t] }} <span class="n">{{ items|length }}</span></summary>
+      {% for d in items %}<a class="leaf {{ 'on' if d_id == d.id }}" href="/e/{{ d.id }}">{{ d.title }}{{ st(d) }}</a>{% endfor %}
+    </details>
+    {% endfor %}
+  </details>
+  {% endfor %}
+  <div class="sec">서비스 지표</div>
+  {% for c in tree.categories %}<a class="leaf lvl1 {{ 'on' if d_id == c.id }}" href="/e/{{ c.id }}">{{ c.title }}{% if c.facts.breaches %}<span class="sd bad"></span>{% endif %}</a>{% endfor %}
+  <div class="sec">문서</div>
+  <details class="tg" data-k="inc">
+    <summary>장애 <span class="n">{{ tree.incidents|length }}</span></summary>
+    {% for d in tree.incidents %}<a class="leaf {{ 'on' if d_id == d.id }}" href="/e/{{ d.id }}">{{ d.title }}</a>{% endfor %}
+  </details>
+  <details class="tg" data-k="rb" open>
+    <summary>런북 · 매뉴얼 <span class="n">{{ tree.runbooks|length }}</span></summary>
+    {% for d in tree.runbooks %}<a class="leaf {{ 'on' if d_id == d.id }}" href="/e/{{ d.id }}">{{ d.title }}</a>{% endfor %}
+  </details>
+  <details class="tg" data-k="team">
+    <summary>팀</summary>
+    {% for d in tree.teams %}<a class="leaf {{ 'on' if d_id == d.id }}" href="/e/{{ d.id }}">{{ d.title }}</a>{% endfor %}
+  </details>
+  <div class="side-foot">스냅샷 {{ when(svc.cfg.now) }} · dummy 데이터</div>
+</aside>
+<div class="main">
+  <header class="top">
+    <button class="burger" onclick="document.body.classList.toggle('side-open')" aria-label="메뉴">☰</button>
+    <form class="gsearch" action="/search" method="get" role="search" autocomplete="off">
+      <span class="gs-ico">🔎</span>
+      <input id="gq" name="q" value="{{ q }}" placeholder="DAG · 테이블 · 인덱스 · 장애 · 런북 · 지표 검색 (예: 추천 피드 미갱신)" aria-label="검색">
+      {% if tab and tab != 'all' %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+      <kbd class="gs-k">⌘K</kbd>
+      <div id="suggest" class="suggest" hidden></div>
+    </form>
+  </header>
+  <main class="content {% block wide %}{% endblock %}">
+    {% block body %}{% endblock %}
+  </main>
+</div>
+<script src="/static/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

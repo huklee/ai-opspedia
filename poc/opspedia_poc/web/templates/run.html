@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% set active = 'admin' %}
+{% block title %}{{ r.id }}{% endblock %}
+{% block wide %}wide{% endblock %}
+{% block body %}
+<div class="crumbs"><a href="/admin">🛠️ 관리자</a><span class="sep">/</span><a href="/admin?job={{ r.job }}">{{ r.job }}</a><span class="sep">/</span><span class="cur">{{ r.id }}</span></div>
+<div class="page-ico">{{ JOBS[r.job].icon }}</div>
+<h1 class="ptitle">{{ JOBS[r.job].title }} <small class="muted">{{ when(r.started_at) }}</small></h1>
+<div class="props">
+  <div class="prop"><span class="pk"><span>◉</span>상태</span><span class="pv"><span class="chip {{ 'ok' if r.status == 'success' else 'warn' if r.status == 'partial' else 'bad' }}">{{ r.status }}</span></span></div>
+  <div class="prop"><span class="pk"><span>🚀</span>트리거</span><span class="pv">{{ TRIGGER.get(r.trigger, r.trigger) }} · {{ r.actor }}{% if r.note %} · <span class="muted">{{ r.note }}</span>{% endif %}</span></div>
+  <div class="prop"><span class="pk"><span>⏱️</span>시간</span><span class="pv">{{ when(r.started_at) }} → {{ when(r.finished_at) }} ({{ dur }}) · 단계 합계 {{ '%.0f' % total }} ms</span></div>
+  <div class="prop"><span class="pk"><span>📦</span>결과</span><span class="pv">원자료 {{ r.stats.raw_items }}건 · 생성 {{ r.stats.created }} · 갱신 {{ r.stats.updated }} · 동일 {{ r.stats.unchanged }}{% if r.stats.removed %} · 삭제 {{ r.stats.removed }}{% endif %}</span></div>
+  <div class="prop"><span class="pk"><span>📝</span>잡 설명</span><span class="pv">{{ JOBS[r.job].desc }}</span></div>
+</div>
+
+<h2 class="h">⛓️ 단계</h2>
+<div class="wf">
+{% for b in bars %}
+  <div class="wf-r {{ b.status }}">
+    <span class="wf-l">{{ STAGE_LABEL.get(b.stage, b.stage) }} <code>{{ b.target }}</code></span>
+    <span class="wf-bar"><i style="left:{{ '%.2f' % b.left }}%;width:{{ '%.2f' % b.width }}%"></i></span>
+    <span class="wf-ms">{{ '%.1f' % b.ms }} ms</span>
+    <span class="wf-m">{{ '❌ ' if b.status == 'failed' }}{{ b.message }}</span>
+  </div>
+{% endfor %}
+</div>
+
+{% if llm_rows %}
+<h2 class="h">🤖 LLM 서술 ({{ llm_rows|length }}건)</h2>
+<table class="tbl">
+<thead><tr><th>문서</th><th>모델</th><th>결과</th><th>출처</th><th>생성 문장</th></tr></thead>
+<tbody>
+{% for x in llm_rows %}
+<tr><td><a href="/e/{{ x.doc_id }}">🚨 {{ svc.docs[x.doc_id].title if x.doc_id in svc.docs else x.doc_id }}</a></td>
+<td class="muted">{{ x.llm.model }}</td>
+<td><span class="chip {{ 'ok' if x.llm.status == 'ok' else 'warn' }}">{{ x.llm.status }}</span> <small class="muted">{{ x.llm.detail }}</small></td>
+<td>{{ x.llm.sources }}개</td>
+<td><ul class="tight">{% for b in x.llm.bullets or [] %}<li class="{{ 'uncited' if b in (x.llm.uncited or []) }}">{{ b }}</li>{% endfor %}</ul></td></tr>
+{% endfor %}
+</tbody></table>
+{% endif %}
+
+<h2 class="h">📝 합성된 문서 <span class="n">{{ changed|length }}</span></h2>
+{% if changed %}
+<table class="tbl">
+<thead><tr><th>문서</th><th>동작</th><th>버전</th><th>바뀐 섹션</th><th>줄</th><th>템플릿</th><th>입력</th></tr></thead>
+<tbody>
+{% for x in changed %}{% set dd = svc.docs.get(x.doc_id) %}
+<tr>
+  <td><a href="/e/{{ x.doc_id }}">{{ ICON.get(x.doc_id.split(':')[0], '') }} {{ dd.title if dd else x.doc_id }}</a></td>
+  <td><span class="chip {{ 'ok' if x.action == 'created' else '' }}">{{ '생성' if x.action == 'created' else '갱신' }}</span></td>
+  <td><a href="/e/{{ x.doc_id }}/history?v={{ x.version }}">v{{ x.version }} diff</a></td>
+  <td>{{ x.sections|join(', ') }}</td>
+  <td><span class="add">+{{ x.added }}</span> <span class="del">−{{ x.removed }}</span></td>
+  <td><code>{{ x.template }}</code></td>
+  <td class="muted"><code>{{ x.input_hash }}</code> · {{ x.inputs|length }}개 출처</td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% else %}<p class="muted">변경된 문서 없음 — 원자료 해시가 같아 재합성 결과 동일</p>{% endif %}
+{% if same %}<details class="fold"><summary>변경 없는 문서 {{ same|length }}개</summary><p class="muted">{% for x in same %}{{ x.doc_id }}{{ ' · ' if not loop.last }}{% endfor %}</p></details>{% endif %}
+{% endblock %}

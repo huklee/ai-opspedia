@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% set d_id = d.id %}{% set active = 'metrics' if d.type in ['metric','category'] else '' %}
+{% block title %}{{ d.title }}{% endblock %}
+{% block body %}
+<div class="crumbs">{% for label, href in crumbs %}{% if href %}<a href="{{ href }}">{{ label }}</a>{% else %}<span>{{ label }}</span>{% endif %}<span class="sep">/</span>{% endfor %}<span class="cur">{{ d.title }}</span></div>
+<div class="page-ico">{{ d.facts.icon if d.type == 'category' else ICON[d.type] }}</div>
+<h1 class="ptitle">{{ d.title }}</h1>
+<div class="props">
+{% for ico, name, val in props %}
+  <div class="prop"><span class="pk"><span>{{ ico }}</span>{{ name }}</span><span class="pv">{{ val|safe }}</span></div>
+{% endfor %}
+</div>
+
+{% if d.type == 'metric' %}{% set ev = d.facts.eval %}
+<div class="mchart">
+  <div class="mbig"><span class="mbv {{ 'bad' if ev.state in ['breach','nodata'] }}">{{ ev.latest_fmt }}</span>
+    {% if ev.delta_pct is not none %}<span class="mbd {{ 'up' if ev.delta_good else 'down' }}">{{ '%+.1f' % ev.delta_pct }}% vs 7일 평균</span>{% endif %}</div>
+  <canvas id="mchart" height="110"></canvas>
+</div>
+<script id="mdata" type="application/json">{{ {"labels": ev.points|map(attribute='t')|list, "values": ev.points|map(attribute='v')|list, "slo": d.facts.slo.value, "unit": d.facts.unit, "title": d.title}|tojson }}</script>
+{% endif %}
+
+{% if d.type == 'category' %}
+<div class="cards mcards">
+{% for mm in d.facts.metrics %}{% set md = metrics.get('metric:' ~ mm.id) %}
+  <a class="card mcard {{ mm.eval.state }}" href="/e/metric:{{ mm.id }}">
+    <div class="mc-t">{{ mm.eval.icon }} {{ mm.title }}</div>
+    <div class="mc-v">{{ mm.eval.latest_fmt }}{% if mm.eval.delta_pct is not none %}<small class="{{ 'up' if mm.eval.delta_good else 'down' }}">{{ '%+.1f' % mm.eval.delta_pct }}%</small>{% endif %}</div>
+    {{ sparkline(mm.eval.points, md.facts.slo.value if md else None, 220, 44, mm.eval.state in ['breach','nodata'])|safe }}
+    <div class="mc-f">SLO {{ mm.eval.slo_fmt }} · {{ mm.eval.reason }}</div>
+  </a>
+{% endfor %}
+</div>
+{% endif %}
+
+<article class="doc">{{ body|safe }}</article>
+{% endblock %}
+{% block scripts %}
+<script>opsTrack({{ {"id": d.id, "title": d.title, "icon": (d.facts.icon if d.type == 'category' else ICON[d.type]), "type": TYPE_LABEL[d.type]}|tojson }});</script>
+{% if 'mermaid' in body %}<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({startOnLoad: true, theme: dark ? 'dark' : 'neutral', flowchart: {wrappingWidth: 420}, fontFamily: 'inherit'});
+</script>{% endif %}
+{% if d.type == 'metric' %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script><script>opsChart('mchart', JSON.parse(document.getElementById('mdata').textContent));</script>{% endif %}
+{% endblock %}

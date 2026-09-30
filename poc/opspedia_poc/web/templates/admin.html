@@ -1,0 +1,57 @@
+{% extends "base.html" %}{% set active = 'admin' %}
+{% block title %}관리자{% endblock %}
+{% block scripts %}<script>document.querySelectorAll('[data-unblock]').forEach(b => b.addEventListener('click', () =>
+  fetch('/api/blocks/' + b.dataset.unblock, {method: 'DELETE', headers: {'X-Requested-With': 'fetch'}}).then(() => location.reload())));</script>{% endblock %}
+{% block wide %}wide{% endblock %}
+{% block body %}
+<div class="page-ico">🛠️</div>
+<h1 class="ptitle">관리자 · 파이프라인 실행 이력</h1>
+<p class="lead">배치가 어떻게 돌았고 지식이 어떻게 합성되었는지 — 실행 · 단계 · 문서 단위 기록 (SQLite <code>runs</code> · <code>run_steps</code> · <code>synthesis_log</code>)</p>
+
+<div class="kpis">
+  <div class="kpi"><b>{{ kpi.runs }}</b><small>실행 (최근 1주)</small></div>
+  <div class="kpi"><b>{{ '%.0f' % (kpi.ok / kpi.runs * 100 if kpi.runs else 0) }}%</b><small>성공률 · 부분 {{ kpi.partial }} · 실패 {{ kpi.failed }}</small></div>
+  <div class="kpi"><b>{{ kpi.docs }}</b><small>현재 문서</small></div>
+  <div class="kpi"><b>{{ kpi.versions }}</b><small>누적 버전</small></div>
+  <div class="kpi"><b>{{ kpi.llm }}</b><small>LLM 서술 반영 · 거절 {{ kpi.llm_rej }}</small></div>
+</div>
+
+<h2 class="h">🗓️ 잡</h2>
+<div class="cards jobs">
+{% for name, j in JOBS.items() %}{% set lr = last_by_job.get(name) %}
+  <a class="card job" href="/admin?job={{ name }}">
+    <div class="job-h">{{ j.icon }} <b>{{ j.title }}</b> <code>{{ name }}</code></div>
+    <div class="job-d">{{ j.desc }}</div>
+    <div class="job-f"><span>⏰ <code>{{ j.schedule }}</code></span>{% if lr %}<span>마지막 {{ '✅' if lr.status == 'success' else '⚠️' if lr.status == 'partial' else '❌' }} {{ when(lr.started_at) }}</span>{% endif %}</div>
+  </a>
+{% endfor %}
+</div>
+
+{% set bl = svc.repo.blocks(active_only=False) %}
+<h2 class="h" id="blocks">⛔ 차단된 원자료 <span class="n">{{ bl|selectattr('active')|list|length }}</span></h2>
+<table class="tbl"><thead><tr><th>원자료</th><th>문서</th><th>사유</th><th>누가 · 언제</th><th></th></tr></thead><tbody>
+{% for b in bl %}<tr class="{{ '' if b.active else 'muted' }}"><td><code>{{ b.source }}/{{ b.key }}#{{ b.hash }}</code></td><td><a href="/e/{{ b.doc_id }}/history">{{ b.doc_id }}</a></td><td>{{ b.reason }}</td><td>{{ b.actor }} · {{ when(b.at) }}</td>
+<td>{% if b.active %}<button class="linkbtn" data-unblock="{{ b.id }}">차단 해제</button>{% else %}해제됨{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">없음 — 문서 생성 이력의 "되돌리기"에서 원자료를 차단할 수 있음</td></tr>{% endfor %}
+</tbody></table>
+
+<h2 class="h">📜 실행 이력 {% if job %}<span class="chip">{{ job }}</span> <a class="more" href="/admin">전체 →</a>{% endif %}</h2>
+<table class="tbl runs">
+<thead><tr><th></th><th>실행</th><th>잡</th><th>트리거</th><th>시작</th><th>소요</th><th>수집</th><th>합성</th><th>LLM</th><th>메모</th></tr></thead>
+<tbody>
+{% for r in runs %}{% set s = r.stats %}
+<tr class="{{ r.status }}">
+  <td>{{ '✅' if r.status == 'success' else '⚠️' if r.status == 'partial' else '❌' if r.status == 'failed' else '⏳' }}</td>
+  <td><a href="/admin/runs/{{ r.id }}"><code>{{ r.id }}</code></a></td>
+  <td>{{ JOBS[r.job].icon }} {{ r.job }}</td>
+  <td>{{ TRIGGER.get(r.trigger, r.trigger) }}{% if r.actor and r.actor != 'scheduler' %} <span class="muted">{{ r.actor }}</span>{% endif %}</td>
+  <td>{{ when(r.started_at) }}</td>
+  <td>{{ durations[r.id] }}</td>
+  <td>{{ s.raw_items or 0 }}건</td>
+  <td>{% if s.created %}<span class="chip ok">+{{ s.created }}</span> {% endif %}{% if s.updated %}<span class="chip">~{{ s.updated }}</span> {% endif %}<span class="muted">={{ s.unchanged or 0 }}</span></td>
+  <td>{% if s.llm_calls %}{{ s.llm_ok }}/{{ s.llm_calls }}{% if s.llm_rejected %} <span class="chip warn">거절 {{ s.llm_rejected }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td class="muted">{{ r.note }}</td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% endblock %}
