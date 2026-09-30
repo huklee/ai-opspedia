@@ -58,7 +58,7 @@ def test_dag_parser_extracts_sensor_and_chain():
 def test_every_entity_has_page(built, cfg):
     from opspedia_poc.services import Services
     s = Services(cfg)
-    n_dags = len(list((ROOT / "dummy/dags").glob("*.py")))
+    n_dags = len(list((ROOT / "dummy/dags").glob("*.py"))) + 15  # + yunbin 운영 메타 CSV 워크플로 15개
     assert sum(d["type"] == "dag" for d in s.docs.values()) == n_dags
     assert {"index:products", "index:reco-feed", "index:query-suggest", "alias:products"} <= set(s.docs)
     assert built["created"] == len(s.docs)
@@ -365,3 +365,52 @@ def test_undo_with_block_survives_reingest(iso):
     assert "±5%" in repo.get_document("runbook:guide")["markdown"]
     steps = repo.run(st["run_id"])["steps"]
     assert any(s["stage"] == "block" for s in steps)
+
+
+# ---- yunbin 운영 메타데이터 CSV (ops_csv) ----
+
+@pytest.fixture(scope="session")
+def yunbin():
+    from opspedia_poc.connectors import OpsMetaCsv
+    c = OpsMetaCsv("yunbin", ROOT / "dummy/yunbin")
+    return c, list(c.fetch())
+
+
+def test_yunbin_incidents_are_one_per_case(yunbin):
+    _, items = yunbin
+    keys = sorted(i.key for i in items if i.kind == "incident")
+    assert keys == ["YB-0814", "YB-0815", "YB-0817", "YB-0820", "YB-0823"]  # 08-08 · 08-12 소규모 SLA 지연은 장애 아님
+    cascade = next(i for i in items if i.kind == "incident" and i.key == "YB-0823").payload["fields"]
+    assert cascade["priority"]["name"] == "P2" and "실패 4" in cascade["summary"] and "실행 누락 2" in cascade["summary"]
+
+
+def test_yunbin_findings_cite_csv_rows(yunbin):
+    c, _ = yunbin
+    for f in c.findings:
+        for path, line, raw in f.rows:
+            text = (ROOT / "dummy/yunbin" / path).read_text(encoding="utf-8-sig").splitlines()
+            assert text[line - 1] == raw
+    stage4 = next(f for f in c.findings if f.rule == "workflow_failed" and f.entities == ["dag:GPCC_stage4_post_proc"])
+    assert "AirflowSensorTimeout" in stage4.summary  # 같은 run_id 의 태스크 오류가 붙음 (base_dt 가 달라도)
+
+
+def test_yunbin_trace_is_in_raw(built, cfg):
+    from opspedia_poc.storage import SqliteRepository
+    repo = SqliteRepository(cfg.data / "opspedia.db")
+    rows = repo.db.execute("select doc_id, entities from synthesis_log where doc_id like 'dag:GPCC%' or doc_id like 'table:wdp_bdp%'").fetchall()
+    assert rows
+    for doc_id, ents in rows:
+        assert json.loads(ents)["summary"]["not_in_raw"] == 0, doc_id
+
+
+def test_multi_day_timeline_is_chronological(built, cfg):
+    from opspedia_poc.services import Services
+    md = Services(cfg).docs["incident:YB-0823"]["markdown"]
+    times = [ln.split("|")[1].strip() for ln in md.split("## 타임라인", 1)[1].split("##", 1)[0].splitlines() if ln.startswith("| 0")]
+    assert times and times == sorted(times) and times[0].startswith("08-23")
+
+
+def test_run_page_lists_generation_history(client, built):
+    html = client.get(f"/admin/runs/{built['run_id']}").text
+    assert 'id="synthesis"' in html and html.count("<tr data-t=") == built["created"] + built["updated"]
+    assert "/e/incident:YB-0823/history?v=1#trace" in html

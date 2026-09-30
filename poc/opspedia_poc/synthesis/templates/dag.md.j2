@@ -39,7 +39,7 @@
 | 태스크 | 오퍼레이터 | 읽기 | 쓰기 · 대상 |
 |---|---|---|---|
 {% for t in f.tasks %}
-| `{{ t.task_id }}` | {{ t.operator }} | {{ (t.reads or []) | join(', ') or ('대기 dag:' ~ t.external_dag_id if t.external_dag_id else '—') }} | {{ (t.writes or []) | join(', ') or t.index_family or t.alias or '—' }} |
+| `{{ t.task_id }}` | {{ t.operator }} | {{ ((t.reads or []) + ((t.s3_reads or []) | map('s3short') | list)) | join(', ') or ('대기 dag:' ~ t.external_dag_id if t.external_dag_id else '—') }} | {{ ((t.writes or []) + ((t.s3_writes or []) | map('s3short') | list)) | join(', ') or t.index_family or t.alias or '—' }} |
 {% endfor %}
 
 {% if f.deps %}
@@ -55,11 +55,26 @@
     ```
 
 {% endfor %}
+{% if f.sla %}{% set s = f.sla %}
+## SLA · 실행 이력
+
+| 항목 | 값 |
+|---|---|
+| 주기 · 기대 시각 | {{ s.cycle }} · {{ s.expected_start or '—' }} → {{ s.expected_end or '—' }} (허용 지연 {{ s.threshold_min or '—' }}분) |
+| 실행 · 실패 · 수동 | {{ s.runs }}회 · {{ s.failed }}회 · {{ s.manual }}회 |
+| 소요 시간 | 중앙값 {{ s.p50_duration_min }}분 · 최대 {{ s.max_duration_min }}분 |
+| SLA 지연 | {% for v in s.violations %}{{ v.base_dt }} +{{ v.late_min }}분{{ ' · ' if not loop.last }}{% else %}없음{% endfor %} |
+
+{% for e_ in s.task_errors %}
+- ❌ {{ e_.base_dt }} `{{ e_.task_id }}` (try {{ e_.try }}): {{ e_.error }}
+{% endfor %}
+
+{% endif %}
 ## 최근 실행
 
 | 상태 | 시작 | 종료 | 소요 |
 |---|---|---|---|
-{% for run in runs %}
+{% for run in runs[:14] %}
 | {{ run.state | icon }} {{ run.state }} | {{ run.start_date | hm }} | {{ run.end_date | hm }} | {{ dur(run.start_date, run.end_date) }} |
 {% endfor %}
 
