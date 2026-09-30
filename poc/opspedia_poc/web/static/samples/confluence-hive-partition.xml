@@ -1,0 +1,18 @@
+<page>
+<title>Hive 파티션 중복 정리 가이드</title>
+<body>
+<ac:structured-macro ac:name="toc"/>
+<p>문서 ID RB-RECO-004 · 담당 추천 플랫폼팀 · 상태 <ac:structured-macro ac:name="status"><ac:parameter ac:name="title">검토 완료</ac:parameter></ac:structured-macro></p>
+<ac:structured-macro ac:name="info"><ac:rich-text-body><p>reco.candidates 에 같은 hr 파티션이 두 번 적재되면 ranking_score_daily 가 OOM 으로 실패함 (INC-2291, INC-2341).</p></ac:rich-text-body></ac:structured-macro>
+<h2>1. 중복 확인</h2>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[SELECT hr, count(*) FROM reco.candidates GROUP BY hr HAVING count(*) > 130000000;]]></ac:plain-text-body></ac:structured-macro>
+<h2>2. 정리</h2>
+<ac:structured-macro ac:name="warning"><ac:parameter ac:name="title">운영 쓰기 작업</ac:parameter><ac:rich-text-body><p>파티션 삭제는 2인 확인 후 진행.</p></ac:rich-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[ALTER TABLE reco.candidates DROP PARTITION (hr='2026092904_dup');]]></ac:plain-text-body></ac:structured-macro>
+<p>정리 후 <ac:link><ri:page ri:content-title="랭킹 배치 OOM 대응 런북"/></ac:link> 의 5단계로 재실행. 문의 <ac:link><ri:user ri:username="park.reco"/></ac:link></p>
+<table><tbody><tr><th>대상 테이블</th><th>파티션 키</th><th>평소 행 수</th></tr><tr><td>reco.candidates</td><td>hr</td><td>약 1.2억</td></tr><tr><td>reco.ranked_items</td><td>dt</td><td>약 3,100만</td></tr></tbody></table>
+<ac:structured-macro ac:name="expand"><ac:parameter ac:name="title">왜 중복되나</ac:parameter><ac:rich-text-body><p>스케줄러 재시작 뒤 catchup 이 켜져 있으면 candidate_gen_hourly 가 같은 시간대를 두 번 실행.</p></ac:rich-text-body></ac:structured-macro>
+<ac:task-list><ac:task><ac:task-status>complete</ac:task-status><ac:task-body>중복 탐지 쿼리 등록</ac:task-body></ac:task><ac:task><ac:task-status>incomplete</ac:task-status><ac:task-body>score_candidates 앞 파티션 크기 검사 태스크 추가</ac:task-body></ac:task></ac:task-list>
+<ac:structured-macro ac:name="gliffy"><ac:parameter ac:name="name">diagram</ac:parameter></ac:structured-macro>
+</body>
+</page>

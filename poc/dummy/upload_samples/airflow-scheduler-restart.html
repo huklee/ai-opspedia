@@ -1,0 +1,13 @@
+<!doctype html><html><head><title>Airflow 스케줄러 재시작 체크리스트</title><style>body{font:14px sans-serif}</style><script>console.log('x')</script></head>
+<body><nav>홈 &gt; 데이터 플랫폼</nav>
+<h1>Airflow 스케줄러 재시작 체크리스트</h1>
+<p>문서 ID SOP-DP-002 · 담당 데이터 플랫폼 · 스케줄러 재시작 뒤 <strong>catchup</strong> 으로 시간 단위 DAG 가 중복 실행되는 것을 막기 위한 절차.</p>
+<h2>재시작 전</h2>
+<ol><li>시간 단위 DAG(<code>candidate_gen_hourly</code>) 의 <em>max_active_runs</em> 가 1 인지 확인</li>
+<li>진행 중 태스크 확인: <code>airflow tasks list-running</code></li></ol>
+<h2>재시작 후</h2>
+<ul><li>중복 dag_run 확인 — 같은 hr 파티션이 두 번 쓰이면 <a href="https://wiki.internal/rb-reco-002">랭킹 배치 OOM 대응 런북</a> 참고</li>
+<li>reco.candidates 파티션 행 수 확인</li></ul>
+<pre>airflow dags list-runs -d candidate_gen_hourly --state running</pre>
+<table><tr><th>점검 항목</th><th>기준</th></tr><tr><td>중복 실행</td><td>0건</td></tr><tr><td>스케줄러 heartbeat</td><td>30초 이내</td></tr></table>
+<footer>© data-platform</footer></body></html>

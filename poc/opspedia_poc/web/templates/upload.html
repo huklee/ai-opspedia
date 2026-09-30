@@ -1,0 +1,80 @@
+{% extends "base.html" %}{% set active = 'upload' %}
+{% block title %}문서 업로드{% endblock %}
+{% block wide %}wide{% endblock %}
+{% block body %}
+<div class="crumbs"><a href="/admin">관리자</a><span class="sep">/</span><span class="cur">문서 업로드</span></div>
+<h1 class="ptitle">문서 업로드</h1>
+<p class="lead">txt · html · Confluence XML(storage format) · md 를 올리면 정적 변환기로 Markdown 을 만들고, 반영 시 파이프라인이 런북 페이지로 합성. 미리보기는 DB 에 쓰지 않음.</p>
+
+<form id="up" class="drop">
+  <input id="upfile" type="file" accept=".txt,.html,.htm,.xml,.md">
+  <label for="upfile"><b>파일 선택</b> 또는 여기로 끌어놓기 · 2 MB 이하</label>
+  <div class="demo">데모 파일: {% for f in samples %}<button type="button" class="chip" data-sample="{{ f }}">{{ f }}</button>{% endfor %}</div>
+</form>
+<div id="pv" hidden>
+  <div class="pv-h"><h2 class="h" id="pv-title"></h2><div class="pv-act"><input id="upnote" placeholder="반영 메모 (선택)"><button id="commit" class="btn">반영</button></div></div>
+  <div class="props" id="pv-props"></div>
+  <div class="checks" id="pv-checks"></div>
+  <div class="pv-cols">
+    <section><h3>원본</h3><pre class="diff rawtext" id="pv-raw"></pre></section>
+    <section><h3>변환된 Markdown</h3><pre class="diff rawtext" id="pv-md"></pre></section>
+  </div>
+  <h3>인식된 엔티티</h3><div class="tblwrap"><table class="tbl mini"><thead><tr><th>엔티티</th><th>표면형</th><th>원본에 있음</th><th>발췌</th></tr></thead><tbody id="pv-ents"></tbody></table></div>
+  <div id="pv-diff"></div>
+</div>
+<div id="result"></div>
+
+<h2 class="h">올라간 문서 <span class="n">{{ files|length }}</span></h2>
+<table class="tbl">
+<thead><tr><th>파일</th><th>문서</th><th>버전</th><th>크기</th><th></th></tr></thead>
+<tbody>
+{% for f in files %}<tr><td><code>{{ f.file }}</code></td><td>{% if f.title %}<a href="/e/{{ f.doc_id }}">{{ f.title }}</a>{% else %}<span class="muted">미반영</span>{% endif %}</td><td>{{ 'v' ~ f.version if f.version }}</td><td>{{ (f.bytes / 1024)|round(1) }} KB</td>
+<td><a href="/e/{{ f.doc_id }}/history">이력</a> · <button class="linkbtn" data-del="{{ f.file }}">삭제 (DB 에서 제거)</button></td></tr>
+{% else %}<tr><td colspan="5" class="muted">없음</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let file = null;
+  const post = (url, f, extra) => { const fd = new FormData(); fd.append('file', f); for (const k in (extra || {})) fd.append(k, extra[k]);
+    return fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.status); return j; }); };
+  const show = d => {
+    $('pv').hidden = false; $('result').innerHTML = '';
+    $('pv-title').textContent = `${d.title}`;
+    const r = d.report;
+    $('pv-props').innerHTML = `<div class="prop"><span class="pk">대상 문서</span><span class="pv"><code>${esc(d.doc_id)}</code> ${d.exists ? '<span class="chip warn">기존 문서 갱신</span>' : '<span class="chip ok">신규</span>'}</span></div>
+      <div class="prop"><span class="pk">변환</span><span class="pv">${esc(r.format)} → Markdown · ${esc(r.converter)} · ${Object.entries(r.stats).map(([k, v]) => `<span class="chip">${esc(k)} ${v}</span>`).join(' ')}</span></div>`;
+    $('pv-checks').innerHTML = d.checks.map(c => `<span class="chip ${c.ok === 'ok' ? 'ok' : 'warn'}">${c.ok === 'ok' ? '✓' : '!'} ${esc(c.msg)}</span>`).join(' ');
+    $('pv-raw').textContent = d.raw; $('pv-md').textContent = d.markdown;
+    $('pv-ents').innerHTML = d.entities.map(e => `<tr><td><a href="/e/${esc(e.id)}">${esc(e.id)}</a></td><td><code>${esc(e.surface)}</code></td><td>${e.in_raw ? '<span class="chip ok">있음</span>' : '<span class="chip bad">없음</span>'}</td><td class="snip">${esc(e.snippet)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">없음</td></tr>';
+    $('pv-diff').innerHTML = d.diff.length ? `<h3>기존 문서 대비 변경</h3><pre class="diff">${d.diff.map(l => `<span class="${l.startsWith('+') ? 'add' : l.startsWith('-') ? 'del' : l.startsWith('@') ? 'hunk' : 'ctx'}">${esc(l)}</span>`).join('')}</pre>` : '';
+  };
+  const pick = f => { file = f; post('/api/upload/preview', f).then(show).catch(e => { $('result').innerHTML = `<p class="chip bad">${esc(e.message)}</p>`; }); };
+  $('upfile').addEventListener('change', e => e.target.files[0] && pick(e.target.files[0]));
+  const drop = $('up');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); e.dataTransfer.files[0] && pick(e.dataTransfer.files[0]); });
+  document.querySelectorAll('[data-sample]').forEach(b => b.addEventListener('click', () =>
+    fetch('/static/samples/' + b.dataset.sample).then(r => r.blob()).then(bl => pick(new File([bl], b.dataset.sample)))));
+  $('commit').addEventListener('click', () => {
+    if (!file) return;
+    $('commit').disabled = true; $('commit').textContent = '반영 중…';
+    post('/api/upload/commit', file, { note: $('upnote').value }).then(d => {
+      $('result').innerHTML = `<div class="fx"><b>반영 완료</b> · 실행 <a href="/admin/runs/${esc(d.run.run_id)}">${esc(d.run.run_id)}</a> (${esc(d.run.status)}) · 생성 ${d.run.created} · 갱신 ${d.run.updated}
+        · <a href="/e/${esc(d.doc_id)}">문서 열기</a> · <a href="/e/${esc(d.doc_id)}/history">생성 이력 · 엔티티 추적</a></div>`;
+      setTimeout(() => location.reload(), 1500);
+    }).catch(e => { $('result').innerHTML = `<p class="chip bad">${esc(e.message)}</p>`; }).finally(() => { $('commit').disabled = false; $('commit').textContent = '반영'; });
+  });
+  document.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = '한 번 더 누르면 삭제'; return; }
+    b.textContent = '삭제 중…';
+    fetch('/api/uploads/' + encodeURIComponent(b.dataset.del), { method: 'DELETE', headers: { 'X-Requested-With': 'fetch' } })
+      .then(r => r.json()).then(() => location.reload());
+  }));
+})();
+</script>
+{% endblock %}
