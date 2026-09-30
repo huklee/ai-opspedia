@@ -26,6 +26,7 @@
 | [018](#adr-018) | LLM 상한은 GPT-OSS-120B(사내 서빙, 추후 변경 가능) · 합성은 LLM 없이 자동화 가능한 부분 우선 | 채택 |
 | [019](#adr-019) | 한국어 검색 품질 최우선: nori 형태소 분석(`_analyze`) + 사용자 사전 + 바이그램 안전망, 한국어 평가 기준치 | 채택 (Q15) |
 | [020](#adr-020) | 배포·구동 시 git 사용 안 함 · Markdown 전문과 모든 버전을 SQLite에 저장, SQLite가 유일한 기준 원본 | 채택 |
+| [021](#adr-021) | PoC 단계는 오픈소스 최대 활용(OpenSearch nori, MkDocs Material, networkx 등) · 설계 인터페이스 뒤 어댑터로만 사용, 본 구현에서 모듈 단위 교체 | 채택 (PoC 한정) |
 
 ---
 
@@ -390,3 +391,26 @@
     - 보관 개수 설정과 `VACUUM`으로 관리
     - 예상 수백 MB 수준
   - 외부 diff 도구 대신 자체 이력·diff 화면 필요(P1)
+
+### ADR-021
+**PoC 단계는 오픈소스 최대 활용, 인터페이스 뒤 어댑터로 격리** (PoC 한정, ADR-001 예외)
+- *배경:*
+  - 본 구현(R1) 전에 핵심 가설 검증 필요: 결정적 페이지 생성, nori 한국어 검색 품질, 드릴 시나리오, GPT-OSS-120B 서술 품질, 에이전트 컨텍스트
+  - 요구사항: "PoC는 오픈소스를 최대한 쓰고, 나중에 교체"
+  - ADR-001(플랫폼 미사용·직접 구현)을 그대로 따르면 PoC 기간이 R1과 비슷해지는 문제
+- *결정:*
+  - PoC 한정으로 플랫폼·프레임워크 도입 허용
+    - 검색: OpenSearch 단일 노드 + `analysis-nori`(BM25 · k-NN · 하이브리드)
+    - 뷰어: ~~MkDocs Material~~ → 2차에서 FastAPI + Jinja2 + markdown-it-py 자체 뷰어(동적 화면 필요, ADR-009 방향)
+    - 그래프: `networkx` · 스케줄: OS cron · 에이전트: `mcp` Python SDK · 평가: `ranx`
+    - 전체 목록은 [mvp-poc.md](mvp-poc.md) §4
+  - 격리 규칙
+    - 설계 인터페이스(`Connector`, `Repository`, `SearchIndex`, `Retriever`, `Embedder`, `LLMClient`, `GraphService`)를 먼저 정의
+    - 오픈소스 호출은 `adapters/` 모듈 안에만 위치
+    - REST 응답·frontmatter 스키마는 본 구현과 동일
+  - 유지 결정: SQLite 기준 원본·git 미사용(ADR-020), GPT-OSS-120B 상한(ADR-018), 원천 시스템 읽기 전용(ADR-016)
+  - OpenSearch는 PoC 호스트 전용 로컬 인스턴스(운영 클러스터 쓰기 없음)
+- *결과:*
+  - PoC 5–7 영업일
+  - H2 비교 결과로 ADR-019 에스컬레이션(OpenSearch 전용 인덱스 유지) 여부 결정
+  - 본 구현 진입 시 어댑터 단위로 교체, 데이터는 `opspedia rebuild`로 재색인
