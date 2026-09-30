@@ -8,17 +8,23 @@
 - SPA 빌드 체인 없음
   - 작은 vanilla-JS 모듈로 HTML 위에 기능을 점진적으로 추가
 
-```
-┌ tree ───────────────┐┌ page ─────────────────────────────────────────┐┌ context ─────────────────┐
-│ Systems             ││ Systems › Reco › DAGs                          ││ facts: schedule 02:00 KST │
-│  ▾ Reco             ││ # feature_store_daily        [generated ▾]     ││ owner reco-platform       │
-│    ▸ Pipelines      ││ Summary … (AI-generated · sources ▸)           ││ last run ✅ 02:41          │
-│    ▾ DAGs           ││ ## Tasks  (table)  ## Inputs/Outputs            ││ Blast radius ▸ 3 tables,  │
-│      feature_store… ││ ## Backfill ```bash …```  ## Known incidents    ││   1 index, 2 DAGs         │
-│ Search              ││                                                ││ Referenced by (12)        │
-│ Incidents           ││ toc ▸                                          ││ Incidents: INC-2291 …     │
-└─────────────────────┘└────────────────────────────────────────────────┘└───────────────────────────┘
- ⌘K  어디서나 빠른 검색(제목, 엔티티, 전문) · / 트리 필터로 포커스 이동 · g g 페이지 맨 위로 이동
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+---
+flowchart LR
+    subgraph TREE["트리 패널"]
+        T["Systems<br/>▾ Reco<br/>▸ Pipelines<br/>▾ DAGs<br/>feature_store…<br/>Search<br/>Incidents"]
+    end
+    subgraph PAGE["페이지"]
+        PG["Systems › Reco › DAGs<br/>제목: feature_store_daily · generated ▾<br/>요약 … AI 생성 · 출처 ▸<br/>섹션: Tasks 표 · Inputs/Outputs<br/>섹션: Backfill 코드 · Known incidents<br/>목차 ▸"]
+    end
+    subgraph CTX["컨텍스트 패널"]
+        CX["schedule 02:00 KST<br/>owner reco-platform<br/>last run ✅ 02:41<br/>영향 범위 ▸ 테이블 3 · 인덱스 1 · DAG 2<br/>Referenced by 12<br/>Incidents: INC-2291 …"]
+    end
+    TREE ~~~ PAGE ~~~ CTX
 ```
 
 ## 2. 기능

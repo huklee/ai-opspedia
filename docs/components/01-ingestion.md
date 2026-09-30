@@ -8,10 +8,33 @@
 - 대상 시스템과 직접 통신하는 유일한 컴포넌트
   - 접근은 항상 **읽기 전용**
 
-```
- sources ─▶ Connector.fetch() ─▶ normalize() ─▶ RawItem{uri, kind, body, meta, semantic_hash} ─▶ raw store (data/raw/…)
-                                                                   │
- scheduler (cron | interval | webhook | CLI) ─▶ run ─▶ diff vs last run ─▶ ChangeSet{added, changed, removed} ─▶ synthesis
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+---
+flowchart TD
+    SCH["스케줄러<br/>cron · interval · webhook · CLI"]
+    SRC["원천 소스"]
+    RUN["실행 run"]
+    F["Connector · fetch<br/>읽기 전용 · 페이지네이션"]
+    N["normalize<br/>의미 뷰 · semantic_hash"]
+    R["RawItem<br/>uri · kind · body · meta · semantic_hash"]
+    RS[("raw store<br/>data/raw/…")]
+    D["직전 실행과 diff"]
+    CS["ChangeSet<br/>added · changed · removed"]
+    SY["합성 synthesis"]
+
+    SCH --> RUN
+    RUN --> F
+    SRC --> F
+    F --> N
+    N --> R
+    R --> RS
+    R --> D
+    D --> CS
+    CS --> SY
 ```
 
 ## 2. 커넥터 (v1 범위)

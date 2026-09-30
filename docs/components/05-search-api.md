@@ -8,11 +8,33 @@
   - LLM 없이 RRF + 규칙 기반 가중치로만 순위 결정([ADR-018](../decisions.md#adr-018))
 - 모든 결과에 인용 포함
 
-```
- query ─▶ parse (filters: type: system: team: tag: status: env:, quoted phrases, entity ids)
-       ├─▶ entity/title exact match ────────────────────────────────────────────────┐
-       ├─▶ analyze (nori _analyze, cached) ─▶ FTS5 BM25 over chunks & docs (top 50) ├─▶ RRF(k=60) + rule weights ─▶ group by doc ─▶ results + snippets + citations
-       └─▶ vector top 50 (if embedder on) ──────────────────────────────────────────┘
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+---
+flowchart TD
+    Q["쿼리"]
+    P["파싱<br/>패싯 type · system · team · tag · status · env<br/>따옴표 구 · 엔티티 ID"]
+    EX["엔티티 · 제목 정확 일치"]
+    AN["분석<br/>nori _analyze · 캐시"]
+    BM["FTS5 BM25<br/>청크 · 문서 top 50"]
+    VEC["벡터 top 50<br/>임베더 켜진 경우"]
+    RRF["RRF k=60<br/>+ 규칙 가중치"]
+    GRP["문서 단위로 묶기"]
+    RES["결과 + 스니펫 + 인용"]
+
+    Q --> P
+    P --> EX
+    P --> AN
+    AN --> BM
+    P --> VEC
+    EX --> RRF
+    BM --> RRF
+    VEC --> RRF
+    RRF --> GRP
+    GRP --> RES
 ```
 
 ## 2. 엔드포인트 (v1)

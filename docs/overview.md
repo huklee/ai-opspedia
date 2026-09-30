@@ -75,35 +75,36 @@
 
 ### 아키텍처 한눈에 보기
 
-```
- Raw inputs ─────────────────────────────────────────────────────────────────────────────────────────
-  DAG dir (.py)    Airflow REST   SQL DDL / info_schema   ES/OpenSearch APIs   Manuals (MD/PDF/Confluence)   Incidents (tickets/postmortems/logs)
-        │               │                 │                      │                        │                          │
-        ▼               ▼                 ▼                      ▼                        ▼                          ▼
- ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- │ 1 ingestion/   connectors → RawItem (content-hashed snapshot) · scheduler (cron + webhook) · run log      │
- └───────────────────────────────────────────────┬──────────────────────────────────────────────────────────┘
-                                                 ▼  only changed items (hash diff)
- ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- │ 2 synthesis/   deterministic renderers (DAG/table/index pages)  +  GPT-OSS-120B (prose, rule misses only) │
- │                → standard Markdown + YAML frontmatter + provenance  → chunker (+contextual header) → embed │
- └───────────────────────────────────────────────┬──────────────────────────────────────────────────────────┘
-                                                 ▼
- ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- │ 3 storage/   opspedia.db (SQLite = single source of truth): documents (full Markdown) · document_versions │
- │              derived: FTS5 (BM25) · chunks+vectors · entities · edges · snapshots · jobs · search log     │
- └───────────────┬──────────────────────────────────────────────────────────┬───────────────────────────────┘
-                 ▼                                                          ▼
- ┌──────────────────────────────────────┐              ┌────────────────────────────────────────────────────┐
- │ 4 catalog/  tree resolver · entity   │              │ 5 api/  hybrid search (nori/bigram BM25 ⊕          │
- │   registry · backlinks · graph walks │─────────────▶│   vector → RRF) · page · tree context · entity     │
- └──────────────────────────────────────┘              │   · graph · /api/context (one call) · auth         │
-                                                       └───────────────────────┬────────────────────────────┘
-                                                                               ▼
- ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- │ 6 frontend/  server-rendered wiki: directory tree · Markdown reader (code/math/tables/anchors/mermaid)   │
- │              · ⌘K quick search · entity pages · backlinks & "blast radius" panel · review status         │
- └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+---
+flowchart TD
+    subgraph SRC["원천 데이터"]
+        S1["DAG 디렉터리<br/>Airflow REST"]
+        S2["SQL DDL<br/>ES·OpenSearch API"]
+        S3["매뉴얼·Confluence<br/>장애 기록·로그"]
+    end
+    ING["① 수집 · ingestion/<br/>커넥터 → 해시 스냅샷<br/>스케줄러 · 실행 로그"]
+    SYN["② 합성 · synthesis/<br/>결정적 렌더러<br/>GPT-OSS-120B 서술 보강<br/>표준 Markdown · 출처 · 임베딩"]
+    STO[("③ 저장 · storage/<br/>SQLite 단일 기준 원본<br/>documents · document_versions<br/>FTS5 · 벡터 · 엔티티 · 엣지")]
+    CAT["④ 카탈로그 · catalog/<br/>트리 · 엔티티 레지스트리<br/>백링크 · 그래프 탐색"]
+    API["⑤ API · api/<br/>nori·바이그램 BM25 ⊕ 벡터<br/>RRF 결합 · /api/context"]
+    FE["⑥ 프런트엔드 · frontend/<br/>트리 · Markdown 뷰어 · ⌘K<br/>엔티티 페이지 · 영향 범위"]
+    AG["AI 에이전트<br/>AIOps"]
+
+    S1 --> ING
+    S2 --> ING
+    S3 --> ING
+    ING -->|변경분만 · 해시 비교| SYN
+    SYN --> STO
+    STO --> CAT
+    STO --> API
+    CAT --> API
+    API --> FE
+    API --> AG
 ```
 
 ### 컴포넌트와 문서
@@ -122,6 +123,7 @@
 | — | 조사 | 조사 노트, 선행 사례, 측정값, 참고 자료 | [research.md](research.md) |
 | — | 방식 비교 | 3가지 방식, 점수, 선택 | [options.md](options.md) |
 | — | 로드맵 | 마일스톤, 우선순위별 작업, 완료 기준 | [roadmap.md](roadmap.md) |
+| — | MVP / PoC | 오픈소스 기반 PoC 범위, 컴포넌트별 커버리지, 교체 원칙 | [mvp-poc.md](mvp-poc.md) |
 | — | 리뷰 로그 | 리뷰 3회와 회차별 변경 | [review-log.md](review-log.md) |
 
 ### 설계 원칙 (모든 컴포넌트 공통)

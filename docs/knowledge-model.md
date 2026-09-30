@@ -14,12 +14,29 @@
 - **엣지**: 엔티티 간 관계(DAG → 테이블 *writes*, 인덱스 → DAG *built_by*, 장애 → DAG *affected* 등)
 - **청크**: 검색용 문서 분할 단위
 
-```
- entity (dag:reco.feature_store_daily) ──described_by──▶ document (Systems/Reco/DAGs/feature_store_daily.md)
-     │                                                         │  frontmatter + body + provenance
-     ├──writes──▶ entity (table:dw.user_features)              └──▶ chunks (heading-bounded, ~500 tokens)
-     └──builds──▶ entity (index:search-prod.products_v3) ──version_of──▶ entity (index_family:search-prod.products)
-                        ◀──affected── entity (incident:ops.inc-2291)      ◀──reads── entity (service:reco.ranking-api)
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+---
+flowchart TD
+    DAG["dag:reco.feature_store_daily"]
+    DOC["문서<br/>Systems/Reco/DAGs/feature_store_daily<br/>frontmatter · 본문 · 출처"]
+    CH["청크<br/>제목 단위 · 약 500 토큰"]
+    TBL["table:dw.user_features"]
+    IDX["index:search-prod.products_v3"]
+    FAM["index_family:search-prod.products"]
+    INC["incident:ops.inc-2291"]
+    SVC["service:reco.ranking-api"]
+
+    DAG -->|described_by| DOC
+    DOC -->|분할| CH
+    DAG -->|writes| TBL
+    DAG -->|builds| IDX
+    IDX -->|version_of| FAM
+    INC -->|affected| IDX
+    SVC -->|reads| FAM
 ```
 
 ## 2. 식별자

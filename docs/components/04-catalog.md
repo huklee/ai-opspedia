@@ -7,11 +7,17 @@
 - 평평한 문서 집합을 탐색 가능한 구조("Systems › Reco › DAGs")로 변환
 - "`dw.user_features`가 늦으면 무엇이 깨지나?" 같은 질문에 답하는 기반
 
-```
- documents ─▶ Tree Resolver ─────────▶ tree nodes (virtual folders + pages, counts, status badges)
- entities/aliases ─▶ Linker ─────────▶ auto-links in rendered HTML + `mentions` edges (backlinks)
- edges ─▶ Graph service ─────────────▶ neighbors, upstream/downstream within N hops, blast radius
- all ─▶ Catalog views ───────────────▶ inventories: every DAG / table / index / incident with health columns
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+---
+flowchart LR
+    D1["documents"] --> TR["트리 리졸버"] --> O1["트리 노드<br/>가상 폴더 + 페이지<br/>개수 · 상태 배지"]
+    E1["entities · aliases"] --> LK["링커"] --> O2["렌더 HTML 자동 링크<br/>mentions 엣지 = 백링크"]
+    G1["edges"] --> GS["그래프 서비스"] --> O3["이웃 · N홉 업/다운스트림<br/>영향 범위"]
+    A1["전체 데이터"] --> CV["카탈로그 뷰"] --> O4["인벤토리<br/>DAG · 테이블 · 인덱스 · 장애<br/>+ 상태 열"]
 ```
 
 ## 2. Tree Resolver

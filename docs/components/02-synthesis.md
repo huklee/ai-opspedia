@@ -17,14 +17,39 @@
 - `llm=off`여도 전부 동작
   - 결정적 렌더링·표준화·추출·분류·청킹·인덱싱
 
-```
- ChangeSet ─▶ route by kind
-   ├─ dag_code/dag_live/table/index/alias ─▶ Renderer (Jinja template, facts, template summary) ─┐
-   │                                            └─▶ LLM prose request (optional, GPT-OSS-120B) ─┤
-   ├─ manual/incident ─▶ Standardizer (field→template mapping first; LLM for leftovers, source-grounded) ─┤
-   ▼                                                                                             ▼
- Validator (schema, citations, links) ─▶ Merge with existing document (fences, overrides, review state) ─▶ SQLite documents + document_versions (1 transaction)
-   ─▶ Entity & edge writer ─▶ Chunker (+contextual header) ─▶ Embedder (cached) ─▶ index update (storage)
+```mermaid
+---
+config:
+  flowchart:
+    wrappingWidth: 420
+---
+flowchart TD
+    CS["ChangeSet"]
+    RT{"kind별 분기"}
+    REN["렌더러<br/>Jinja 템플릿 · 사실 정보 · 템플릿 요약"]
+    LLM["LLM 서술 요청<br/>GPT-OSS-120B · 선택"]
+    STD["표준화기<br/>필드 → 템플릿 매핑 우선<br/>잔여분만 LLM · 출처 기반"]
+    VAL["검증기<br/>스키마 · 인용 · 링크"]
+    MRG["기존 문서와 병합<br/>펜스 · override · 리뷰 상태"]
+    DB[("SQLite<br/>documents + document_versions<br/>트랜잭션 1개")]
+    ENT["엔티티 · 엣지 기록"]
+    CHK["청커<br/>컨텍스트 헤더"]
+    EMB["임베더 · 캐시"]
+    IX["인덱스 갱신"]
+
+    CS --> RT
+    RT -->|dag · table · index · alias| REN
+    RT -->|manual · incident| STD
+    REN -.->|선택| LLM
+    REN --> VAL
+    LLM --> VAL
+    STD --> VAL
+    VAL --> MRG
+    MRG --> DB
+    DB --> ENT
+    ENT --> CHK
+    CHK --> EMB
+    EMB --> IX
 ```
 
 ## 2. 하위 모듈
