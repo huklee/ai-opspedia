@@ -258,13 +258,24 @@ def parse(key: str, title: str, jira: dict[str, Any] | None, files: dict[str, st
     elif "root_cause" in kept:
         merged["root_cause"] = {**kept["root_cause"], "origin": "LLM · 리뷰 필요"}
     tl = [{"time": datetime.fromisoformat(x["at"]).strftime("%H:%M"), "event": x["event"], "cites": x["cites"],
-           "origin": x["origin"]} for x in det["timeline"]]
+           "origin": x["origin"], "at": datetime.fromisoformat(x["at"])} for x in det["timeline"]]
     seen = {x["time"] for x in tl}
+    det_at = [x["at"] for x in tl]
     for x in kept.get("timeline", []):
         if x["time"] not in seen:
-            tl.append({**x, "origin": "LLM"})
+            # LLM 은 HH:MM 만 줌 → 결정적 사건 날짜 중 가장 가까운 시각이 되는 날짜에 붙여 정렬
+            at = None
+            if det_at and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", x["time"]):
+                cands = [d.replace(hour=int(x["time"][:2]), minute=int(x["time"][3:]), second=0, microsecond=0) for d in det_at]
+                at = min(cands, key=lambda c: min(abs((c - d).total_seconds()) for d in det_at))
+            tl.append({**x, "origin": "LLM", "at": at})
             seen.add(x["time"])
-    merged["timeline"] = sorted(tl, key=lambda x: x["time"])
+    tl.sort(key=lambda x: (x["at"] is None, x["at"] or datetime.min, x["time"]))
+    if len({x["at"].date() for x in tl if x["at"]}) > 1:  # 여러 날에 걸치면 날짜까지 표시
+        for x in tl:
+            if x["at"]:
+                x["time"] = x["at"].strftime("%m-%d %H:%M")
+    merged["timeline"] = [{k: v for k, v in x.items() if k != "at"} for x in tl]
     merged["actions"] = [{**a, "cmd": next((c["cmd"] for c in det["commands"] if set(c["cites"]) & set(a["cites"])), None)}
                          for a in kept.get("actions", [])]
     cmd_cited = {c for a in merged["actions"] for c in a["cites"]}
