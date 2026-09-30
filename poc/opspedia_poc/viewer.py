@@ -217,10 +217,16 @@ def mount(app: FastAPI, get_svc) -> None:
         for s in r["steps"]:
             bars.append({"left": acc / total * 100, "width": max(s["ms"] / total * 100, 0.6), **s})
             acc += s["ms"]
-        changed = [x for x in r["synthesis"] if x["action"] != "unchanged"]
+        changed = [{**x, "total_ms": ((x.get("timing") or {}).get("render_ms") or 0) + ((x.get("timing") or {}).get("llm_ms") or 0)}
+                   for x in r["synthesis"] if x["action"] != "unchanged"]
+        changed.sort(key=lambda x: (x["action"] != "created", x["doc_id"]))
+        gen_types: dict[str, int] = {}
+        for x in changed:
+            t = x["doc_id"].split(":")[0]
+            gen_types[t] = gen_types.get(t, 0) + 1
         same = [x for x in r["synthesis"] if x["action"] == "unchanged"]
         llm_rows = [x for x in r["synthesis"] if x["llm"] and x["llm"].get("status") not in (None, "off")]
-        return page("run.html", request, r=r, bars=bars, total=total, changed=changed, same=same,
+        return page("run.html", request, r=r, bars=bars, total=total, changed=changed, same=same, gen_types=sorted(gen_types.items()),
                     llm_rows=llm_rows, dur=_dur_s(r))
 
     @app.get("/e/{entity:path}/synthesis")

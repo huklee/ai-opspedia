@@ -40,23 +40,40 @@
 </tbody></table>
 {% endif %}
 
-<h2 class="h">📝 합성된 문서 <span class="n">{{ changed|length }}</span></h2>
+<h2 class="h" id="synthesis">📝 생성 이력 <span class="n">{{ changed|length }}</span> <small class="muted">이 실행이 만든 문서 버전 · 행을 누르면 해당 버전의 생성 이력</small></h2>
 {% if changed %}
-<table class="tbl">
-<thead><tr><th>문서</th><th>동작</th><th>버전</th><th>바뀐 섹션</th><th>줄</th><th>템플릿</th><th>입력</th></tr></thead>
+<div class="gen-filter" role="group" aria-label="문서 종류 필터">
+  <button type="button" class="chip on" data-t="">전체 {{ changed|length }}</button>
+  {% for t, n in gen_types %}<button type="button" class="chip" data-t="{{ t }}">{{ ICON.get(t, '') }} {{ t }} {{ n }}</button>{% endfor %}
+  <input type="search" id="gen-q" placeholder="문서 이름 거르기">
+</div>
+<table class="tbl gen">
+<thead><tr><th>문서</th><th>동작</th><th>생성 이력</th><th>모델</th><th>엔티티 추출 · 원본 대조</th><th>링크</th><th>소요</th><th>바뀐 섹션 · 줄</th></tr></thead>
 <tbody>
-{% for x in changed %}{% set dd = svc.docs.get(x.doc_id) %}
-<tr>
+{% for x in changed %}{% set dd = svc.docs.get(x.doc_id) %}{% set es = (x.entities or {}).get('summary', {}) %}{% set hv = '/e/' ~ x.doc_id ~ '/history?v=' ~ x.version %}
+<tr data-t="{{ x.doc_id.split(':')[0] }}" data-q="{{ (x.doc_id ~ ' ' ~ (dd.title if dd else ''))|lower }}">
   <td><a href="/e/{{ x.doc_id }}">{{ ICON.get(x.doc_id.split(':')[0], '') }} {{ dd.title if dd else x.doc_id }}</a></td>
   <td><span class="chip {{ 'ok' if x.action == 'created' else '' }}">{{ '생성' if x.action == 'created' else '갱신' }}</span></td>
-  <td><a href="/e/{{ x.doc_id }}/history?v={{ x.version }}">v{{ x.version }} diff</a></td>
-  <td>{{ x.sections|join(', ') }}</td>
-  <td><span class="add">+{{ x.added }}</span> <span class="del">−{{ x.removed }}</span></td>
-  <td><code>{{ x.template }}</code></td>
-  <td class="muted"><code>{{ x.input_hash }}</code> · {{ x.inputs|length }}개 출처</td>
+  <td><a href="{{ hv }}">v{{ x.version }} 생성 이력 →</a></td>
+  <td class="muted">{% if x.llm and x.llm.get('status') not in (None, 'off') %}{{ x.llm.requested or x.llm.model }}{% if x.llm.used and x.llm.used != x.llm.requested %} <small>(대역 {{ x.llm.used }})</small>{% endif %} <span class="chip {{ 'ok' if x.llm.status == 'ok' else 'warn' }}">{{ x.llm.status }}</span>{% else %}템플릿만{% endif %}</td>
+  <td>{% if es %}<a href="{{ hv }}#trace">{{ es.extracted }}개</a> · <span class="{{ 'ok' if not es.not_in_raw else 'bad' }}">원본 {{ es.in_raw }}</span>{% if es.computed %} · 계산 {{ es.computed }}{% endif %}{% if es.not_in_raw %} · <span class="chip bad">원본 없음 {{ es.not_in_raw }}</span>{% endif %} · 사용 {{ es.used }}{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td>{% if es %}{{ es.links }}{% if es.links_none %} <span class="chip bad">근거 없음 {{ es.links_none }}</span>{% endif %}{% else %}—{% endif %}</td>
+  <td class="muted"><a href="{{ hv }}#timing">{{ '%.1f' % x.total_ms }} ms</a></td>
+  <td>{{ x.sections|join(', ') }} <span class="add">+{{ x.added }}</span> <span class="del">−{{ x.removed }}</span></td>
 </tr>
 {% endfor %}
 </tbody></table>
-{% else %}<p class="muted">변경된 문서 없음 — 원자료 해시가 같아 재합성 결과 동일</p>{% endif %}
+<script>
+(() => {
+  const rows = [...document.querySelectorAll('table.gen tbody tr')], q = document.getElementById('gen-q');
+  let t = '';
+  const apply = () => { const s = q.value.trim().toLowerCase();
+    rows.forEach(r => { r.hidden = (t && r.dataset.t !== t) || (s && !r.dataset.q.includes(s)); }); };
+  document.querySelectorAll('.gen-filter button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.gen-filter button').forEach(x => x.classList.toggle('on', x === b)); t = b.dataset.t; apply(); }));
+  q.addEventListener('input', apply);
+})();
+</script>
+{% else %}<p class="muted">변경된 문서 없음 — 원자료 해시가 같아 재합성 결과 동일 (생성 이력 없음)</p>{% endif %}
 {% if same %}<details class="fold"><summary>변경 없는 문서 {{ same|length }}개</summary><p class="muted">{% for x in same %}{{ x.doc_id }}{{ ' · ' if not loop.last }}{% endfor %}</p></details>{% endif %}
 {% endblock %}
