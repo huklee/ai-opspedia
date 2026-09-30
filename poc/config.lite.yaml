@@ -1,0 +1,146 @@
+# 가벼운 로컬 실행용 설정 — Java · OpenSearch · LLM 없이 동작
+#   검색: SQLite FTS5 바이그램 (한국어 형태소 분석 nori 없음)
+#   LLM: mock (시연용, 장애 요약 흐름만) · 자연어 검색은 규칙 답변만
+# 사용: uv run opspedia-poc -c config.lite.yaml seed-history && uv run opspedia-poc -c config.lite.yaml serve --http
+# 전체 기능(nori · GPT-OSS-120B/Ollama)은 config.yaml
+data_dir: data-lite
+sources:
+- kind: dag_repo
+  name: reco-dags
+  path: dummy/dags
+- kind: airflow_fixture
+  name: airflow-prod
+  path: dummy/airflow.json
+- kind: ddl
+  name: warehouse
+  path: dummy/ddl
+  dialect: hive
+- kind: search_fixture
+  name: es-prod
+  path: dummy/search.json
+- kind: incidents_fixture
+  name: jira-reco
+  path: dummy/incidents
+- kind: incident_bundles
+  name: incident-raw
+  path: dummy/incidents_raw
+- kind: manuals
+  name: reco-manuals
+  path: dummy/manuals
+- kind: metrics_fixture
+  name: prometheus
+  path: dummy/metrics
+- kind: manuals
+  name: uploads
+  path: data-lite/uploads
+  parser: static
+systems:
+- id: reco
+  title: Reco 추천 시스템
+  team: reco-platform
+  description: 피처 → 후보 생성 → 랭킹 → 피드 발행까지의 추천 배치 파이프라인과 검색 인덱스
+- id: search
+  title: 상품 검색
+  team: search-infra
+  description: 상품 검색 인덱스 빌드와 alias 전환, 검색 로그 적재
+teams:
+- id: reco-platform
+  title: 추천 플랫폼팀
+  oncall: '@reco-oncall (PagerDuty: reco-primary)'
+  channel: '#reco-ops'
+- id: search-infra
+  title: 검색 인프라팀
+  oncall: '@search-oncall (PagerDuty: search-primary)'
+  channel: '#search-ops'
+dag_systems:
+  product_index_build: search
+  product_index_alias_swap: search
+  search_log_etl: search
+  query_suggest_build: search
+index_families:
+- id: products
+  pattern: products_v*
+  alias: products
+  builder_dag: product_index_build
+  freshness_hours: 26
+  system: search
+- id: reco-feed
+  pattern: reco-feed-*
+  alias: reco-feed
+  builder_dag: reco_feed_publish
+  freshness_hours: 26
+  system: reco
+- id: query-suggest
+  pattern: query-suggest-*
+  alias: query-suggest
+  builder_dag: query_suggest_build
+  freshness_hours: 170
+  system: search
+schema_systems:
+  reco: reco
+  search: search
+  logs: search
+user_dictionary:
+- 추천배치
+- 피처스토어
+- 후보생성
+- 롤오버
+- 리인덱스
+- 백필
+known_terms:
+- max_active_runs
+- catchup
+- upstream_failed
+- max_doc_drop
+- docs_count
+- number_of_replicas
+- executor_memory
+- on_failure_callback
+- try_number
+- unassigned_shards
+aliases:
+  추천 피드: index:reco-feed
+  피드 인덱스: index:reco-feed
+  상품 인덱스: index:products
+  products 인덱스: index:products
+  자동완성: index:query-suggest
+  피처스토어: dag:feature_store_daily
+  랭킹 배치: dag:ranking_score_daily
+  후보생성: dag:candidate_gen_hourly
+  추천 CTR: metric:reco_ctr
+  검색 무결과율: metric:search_zero_rate
+synonyms:
+- - 추천
+  - 리코
+  - reco
+- - 피처
+  - feature
+  - 특성
+- - 인덱스
+  - index
+  - 색인
+- - 장애
+  - 인시던트
+  - incident
+- - 별칭
+  - alias
+- - 백필
+  - backfill
+  - 재처리
+now: '2026-09-29T09:00:00+09:00'
+llm:
+  provider: mock
+ask:
+  provider: 'off'
+embedder:
+  provider: 'off'
+  model: nlpai-lab/KURE-v1
+search:
+  backend: sqlite_bigram
+  opensearch_url: http://127.0.0.1:9200
+  index: opspedia-poc-docs
+server:
+  host: 127.0.0.1
+  port: 8443
+  certs: certs
+  api_token_env: OPSPEDIA_API_TOKEN
