@@ -1,0 +1,11 @@
+# {{ e.title }}
+
+- 온콜 {{ f.oncall }} · 채널 {{ f.channel }}
+
+## 담당 엔티티
+
+{% for i in members %}
+- {{ status_of(i) }} {{ link(i) }}
+{% else %}
+- 없음
+{% endfor %}

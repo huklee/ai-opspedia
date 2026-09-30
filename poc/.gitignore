@@ -1,0 +1,8 @@
+.venv/
+.runtime/
+data/
+__pycache__/
+.pytest_cache/
+data-lite/
+certs/
+*.log

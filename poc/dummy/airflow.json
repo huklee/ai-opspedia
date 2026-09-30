@@ -1,0 +1,32 @@
+{
+  "_comment": "Airflow REST /api/v1 응답 형태의 dummy 스냅샷 (dags + 최근 dagRuns)",
+  "fetched_at": "2026-09-29T08:59:30+09:00",
+  "dags": [
+    {"dag_id": "feature_store_daily", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 02:00", "tags": [{"name": "reco"}, {"name": "feature"}]},
+    {"dag_id": "user_embedding_daily", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 03:30", "tags": [{"name": "reco"}]},
+    {"dag_id": "item_embedding_daily", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 03:30", "tags": [{"name": "reco"}]},
+    {"dag_id": "candidate_gen_hourly", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 15 minutes past the hour", "tags": [{"name": "reco"}]},
+    {"dag_id": "ranking_train_weekly", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 04:00, only on Monday", "tags": [{"name": "reco"}]},
+    {"dag_id": "ranking_score_daily", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 05:00", "tags": [{"name": "reco"}]},
+    {"dag_id": "reco_feed_publish", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 06:00", "tags": [{"name": "reco"}]},
+    {"dag_id": "search_log_etl", "is_paused": false, "owners": ["search-infra"], "timetable_description": "At 01:00", "tags": [{"name": "search"}]},
+    {"dag_id": "product_index_build", "is_paused": false, "owners": ["search-infra"], "timetable_description": "At 03:00", "tags": [{"name": "search"}]},
+    {"dag_id": "product_index_alias_swap", "is_paused": false, "owners": ["search-infra"], "timetable_description": "At 04:00", "tags": [{"name": "search"}]},
+    {"dag_id": "query_suggest_build", "is_paused": true, "owners": ["search-infra"], "timetable_description": "At 02:00, only on Sunday", "tags": [{"name": "search"}]},
+    {"dag_id": "ctr_report_daily", "is_paused": false, "owners": ["reco-platform"], "timetable_description": "At 09:00", "tags": [{"name": "reco"}]}
+  ],
+  "dag_runs": {
+    "feature_store_daily": [{"state": "success", "start_date": "2026-09-29T02:00:05+09:00", "end_date": "2026-09-29T02:41:12+09:00"}, {"state": "success", "start_date": "2026-09-28T02:00:04+09:00", "end_date": "2026-09-28T02:39:50+09:00"}],
+    "user_embedding_daily": [{"state": "success", "start_date": "2026-09-29T03:30:02+09:00", "end_date": "2026-09-29T04:02:40+09:00"}],
+    "item_embedding_daily": [{"state": "success", "start_date": "2026-09-29T03:30:02+09:00", "end_date": "2026-09-29T03:58:11+09:00"}],
+    "candidate_gen_hourly": [{"state": "success", "start_date": "2026-09-29T08:15:01+09:00", "end_date": "2026-09-29T08:27:33+09:00"}],
+    "ranking_train_weekly": [{"state": "success", "start_date": "2026-09-28T04:00:00+09:00", "end_date": "2026-09-28T06:12:09+09:00"}],
+    "ranking_score_daily": [{"state": "failed", "start_date": "2026-09-29T05:00:03+09:00", "end_date": "2026-09-29T05:21:47+09:00"}, {"state": "success", "start_date": "2026-09-28T05:00:02+09:00", "end_date": "2026-09-28T05:44:18+09:00"}],
+    "reco_feed_publish": [{"state": "upstream_failed", "start_date": "2026-09-29T06:00:00+09:00", "end_date": "2026-09-29T06:00:01+09:00"}, {"state": "success", "start_date": "2026-09-28T06:00:01+09:00", "end_date": "2026-09-28T06:18:42+09:00"}],
+    "search_log_etl": [{"state": "success", "start_date": "2026-09-29T01:00:02+09:00", "end_date": "2026-09-29T01:34:40+09:00"}],
+    "product_index_build": [{"state": "success", "start_date": "2026-09-29T03:00:01+09:00", "end_date": "2026-09-29T03:47:25+09:00"}],
+    "product_index_alias_swap": [{"state": "failed", "start_date": "2026-09-29T04:00:02+09:00", "end_date": "2026-09-29T04:00:40+09:00"}],
+    "query_suggest_build": [{"state": "success", "start_date": "2026-09-13T02:00:00+09:00", "end_date": "2026-09-13T02:20:10+09:00"}],
+    "ctr_report_daily": [{"state": "success", "start_date": "2026-09-28T09:00:00+09:00", "end_date": "2026-09-28T09:08:15+09:00"}]
+  }
+}

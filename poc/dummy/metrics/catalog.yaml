@@ -1,0 +1,60 @@
+# 서비스 중요 지표 카탈로그 (정의 · SLO · 산출 경로). 값은 series.json (Prometheus query_range 형태)
+categories:
+  - id: reco-quality
+    icon: "🎯"
+    title: 추천 품질
+    description: 사용자가 체감하는 추천 결과의 품질과 신선도
+    team: reco-platform
+  - id: pipeline-sla
+    icon: "⏱️"
+    title: 파이프라인 SLA
+    description: 추천 배치 DAG 의 성공률과 완료 시각
+    team: reco-platform
+  - id: search-index
+    icon: "🔎"
+    title: 검색 인덱스 건강도
+    description: 상품 인덱스 문서 수 · alias 최신성 · 자동완성 신선도
+    team: search-infra
+  - id: search-quality
+    icon: "🔍"
+    title: 검색 품질 · 성능
+    description: 검색 무결과율 · 클릭률 · 응답 지연
+    team: search-infra
+
+metrics:
+  - {id: reco_ctr, category: reco-quality, title: 추천 피드 CTR, unit: "%", decimals: 2, better: higher,
+     slo: {op: ">=", value: 3.8}, source: "reco.ctr_report (avg(ctr))", producer: [dag:ctr_report_daily, table:reco.ctr_report],
+     description: 추천 피드 노출 대비 클릭 비율. 피드 미갱신 시 1–2일 뒤 하락}
+  - {id: reco_feed_freshness, category: reco-quality, title: 추천 피드 신선도, unit: 시간, decimals: 1, better: lower,
+     slo: {op: "<=", value: 26}, source: "now() - creation_date(alias reco-feed)", producer: [index:reco-feed, dag:reco_feed_publish],
+     description: reco-feed alias 가 가리키는 인덱스의 경과 시간}
+  - {id: reco_coverage, category: reco-quality, title: 추천 아이템 커버리지, unit: "%", decimals: 1, better: higher,
+     slo: {op: ">=", value: 35}, source: "count(distinct items in reco.ranked_items) / count(reco.items)", producer: [table:reco.ranked_items],
+     description: 하루 동안 한 번 이상 추천된 아이템 비율 (다양성)}
+  - {id: dag_success_rate, category: pipeline-sla, title: 추천 DAG 성공률 (24시간), unit: "%", decimals: 1, better: higher,
+     slo: {op: ">=", value: 95}, source: "airflow dag_run state=success / total (tags: reco)", producer: [system:reco],
+     description: reco 태그 DAG 의 최근 24시간 실행 성공 비율}
+  - {id: feature_store_finish, category: pipeline-sla, title: 피처스토어 완료 시각, unit: 시, decimals: 2, better: lower,
+     slo: {op: "<=", value: 3.0}, source: "feature_store_daily end_date (KST 시각)", producer: [dag:feature_store_daily],
+     description: feature_store_daily 완료 시각. 03:00 이후면 임베딩 · 랭킹 연쇄 지연}
+  - {id: feed_publish_finish, category: pipeline-sla, title: 추천 피드 발행 완료 시각, unit: 시, decimals: 2, better: lower,
+     slo: {op: "<=", value: 7.0}, source: "reco_feed_publish end_date (KST 시각)", producer: [dag:reco_feed_publish],
+     description: 추천 피드 alias 전환 완료 시각. 미완료일은 값 없음}
+  - {id: products_doc_count, category: search-index, title: products 서비스 문서 수, unit: 만 건, decimals: 1, better: higher,
+     slo: {op: ">=", value: 110}, source: "docs.count(alias products)", producer: [index:products, alias:products],
+     description: products alias 대상 인덱스의 문서 수}
+  - {id: products_newest_doc_ratio, category: search-index, title: 최신 products 인덱스 문서 비율, unit: "%", decimals: 0, better: higher,
+     slo: {op: ">=", value: 80}, source: "docs.count(newest products_v*) / docs.count(alias products)", producer: [index:products, dag:product_index_build],
+     description: 새로 빌드한 인덱스의 문서 수 / 서비스 중 인덱스 문서 수. 80 % 미만이면 alias 전환 차단}
+  - {id: suggest_freshness, category: search-index, title: 자동완성 인덱스 신선도, unit: 일, decimals: 0, better: lower,
+     slo: {op: "<=", value: 7}, source: "now() - creation_date(alias query-suggest)", producer: [index:query-suggest, dag:query_suggest_build],
+     description: query-suggest alias 대상 인덱스 경과 일수 (주간 빌드)}
+  - {id: search_zero_rate, category: search-quality, title: 검색 무결과율, unit: "%", decimals: 2, better: lower,
+     slo: {op: "<=", value: 3.5}, source: "logs.search_clicks (결과 0건 질의 비율)", producer: [table:logs.search_clicks, dag:search_log_etl],
+     description: 결과가 0건인 검색 질의 비율}
+  - {id: search_ctr, category: search-quality, title: 검색 CTR, unit: "%", decimals: 1, better: higher,
+     slo: {op: ">=", value: 30}, source: "logs.search_clicks (clicks / queries)", producer: [table:logs.search_clicks],
+     description: 검색 결과 클릭 비율}
+  - {id: search_p95_ms, category: search-quality, title: 검색 p95 지연, unit: ms, decimals: 0, better: lower,
+     slo: {op: "<=", value: 250}, source: "histogram_quantile(0.95, search_request_duration_seconds)", producer: [alias:products],
+     description: 검색 API p95 응답 시간}

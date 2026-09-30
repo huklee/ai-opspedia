@@ -1,0 +1,19 @@
+{
+ "key": "INC-2341",
+ "fields": {
+  "summary": "[SEV2] 추천 피드 미갱신 + products alias 전환 차단 (09-29)",
+  "status": {"name": "In Progress"},
+  "priority": {"name": "P2"},
+  "created": "2026-09-29T07:12:00+09:00",
+  "resolutiondate": null,
+  "labels": ["reco", "search", "ranking_score_daily", "products"],
+  "assignee": {"displayName": "김운영"},
+  "description": "새벽 배치 실패로 추천 피드가 전날 결과로 노출 중. products 인덱스 alias 전환도 막혀 있음. 슬랙 #reco-ops 스레드 참고. 원인 조사 중.",
+  "customfield_root_cause": "",
+  "customfield_resolution": "",
+  "comment": {"comments": [
+   {"created": "2026-09-29T07:15:00+09:00", "author": {"displayName": "김운영"}, "body": "슬랙에서 대응 중. 영향: 추천 피드 신선도 27시간."},
+   {"created": "2026-09-29T08:40:00+09:00", "author": {"displayName": "박추천"}, "body": "candidate_gen_hourly 04시 중복 실행 확인. INC-2291 과 같은 패턴."}
+  ]}
+ }
+}

@@ -1,0 +1,66 @@
+{% import '_macros.j2' as m with context %}
+{% set h = f.health %}
+# {{ e.title }} (인덱스 패밀리)
+
+{% if h.level == 'crit' %}!!! danger "상태 점검: 조치 필요"{% elif h.level == 'warn' %}!!! warning "상태 점검: 주의"{% else %}!!! success "상태 점검: 정상"{% endif %}
+
+{% for c in h.checks %}
+    - {{ c.level | level }} {{ c.msg }}
+{% else %}
+    - 이상 없음
+{% endfor %}
+    - {{ m.oncall(team) }}
+    - 클러스터 `{{ f.cluster }}` ({{ f.engine }}, {{ f.cluster_health }})
+
+## 요약
+
+<!-- gen:start summary -->
+- 패턴 `{{ f.pattern }}` · alias {{ link('alias:' ~ f.alias) }} → `{{ h.alias_target }}` · 최신 `{{ h.newest }}`
+- 빌더 DAG {{ link('dag:' ~ f.builder_dag) }} {{ status_of('dag:' ~ f.builder_dag) }} · 최신성 기준 {{ f.freshness_hours }}시간
+<!-- gen:end summary -->
+
+## 버전 (실제 인덱스)
+
+| 인덱스 | alias | health | 문서 수 | 크기 | 생성 |
+|---|---|---|---|---|---|
+{% for v in h.versions | reverse %}
+| `{{ v.index }}` | {{ '◀ ' ~ f.alias if v.index == h.alias_target else '' }} | {{ v.health }} | {{ '{:,}'.format(v.docs_count) }} | {{ v.store_size }} | {{ v.creation_date | hm }} |
+{% endfor %}
+
+## 매핑
+
+{% set latest = h.versions[-1] if h.versions else None %}
+{% if latest %}
+| 필드 | 타입 |
+|---|---|
+{% for k, v in latest.mappings | dictsort %}
+| `{{ k }}` | {{ v }} |
+{% endfor %}
+{% endif %}
+{% if h.mapping_diff and (h.mapping_diff.added or h.mapping_diff.removed or h.mapping_diff.changed) %}
+
+- 직전 버전 대비 변경: 추가 {{ h.mapping_diff.added | join(', ') or '—' }} · 삭제 {{ h.mapping_diff.removed | join(', ') or '—' }} · 타입 변경 {{ h.mapping_diff.changed | join(', ') or '—' }}
+{% endif %}
+
+## 업스트림
+
+{% for u in up %}
+- {{ u.distance }}홉 {{ status_of(u.id) }} {{ link(u.id) }} ({{ u.rel }})
+{% else %}
+- 없음
+{% endfor %}
+
+## 리니지
+
+```mermaid
+{{ mermaid(id, 3) }}
+```
+
+## 롤오버 · 리인덱스 · alias 전환
+
+- 전환·롤백 절차는 아래 런북 참고
+- v1 은 읽기 전용: 위키에서 인덱스 작업 실행 없음 (ADR-016)
+
+{{ m.known(incidents, runbooks) }}
+
+{{ m.sources(e) }}

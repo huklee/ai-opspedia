@@ -1,0 +1,42 @@
+{% import "_macros.j2" as m with context %}
+{% set x = f.eval %}
+# {{ e.title }}
+
+{% if x.state == 'breach' %}!!! danger "{{ x.icon }} {{ x.latest_fmt }} · {{ x.reason }}"{% elif x.state == 'nodata' %}!!! warning "{{ x.icon }} {{ x.reason }}"{% elif x.state == 'near' %}!!! warning "{{ x.icon }} {{ x.latest_fmt }} · {{ x.reason }}"{% else %}!!! success "{{ x.icon }} {{ x.latest_fmt }} · SLO 충족"{% endif %}
+
+    - SLO {{ x.slo_fmt }} · 7일 평균 {{ x.avg7_fmt }}{% if x.delta_pct is not none %} · 변화 {{ '%+.1f' % x.delta_pct }} %{% endif %}{% if x.anomaly %} · **이상 탐지 (3σ 초과)**{% endif %}
+
+    - 카테고리 {{ link('category:' ~ f.category) }} · 담당 {{ link('team:' ~ e.team) if e.team else '—' }}
+
+## 요약
+
+<!-- gen:start summary -->
+- {{ f.description }}
+- 최신 {{ x.latest_fmt }} · 7일 평균 {{ x.avg7_fmt }} · 판정 {{ x.icon }} {{ x.reason }}
+<!-- gen:end summary -->
+
+## 정의
+
+| 항목 | 값 |
+|---|---|
+| 산출식 | `{{ f.source }}` |
+| 방향 | {{ '높을수록 좋음' if f.better == 'higher' else '낮을수록 좋음' }} |
+| SLO | {{ x.slo_fmt }} |
+| 산출 경로 | {% for p in f.producer %}{{ link(p) }} {{ status_of(p) }}{{ ' · ' if not loop.last }}{% endfor %} |
+
+## 최근 값
+
+| 날짜 | 값 |
+|---|---|
+{% for p in x.points[-7:] | reverse %}
+| {{ p.t }} | {{ fmt(p.v, f) }} |
+{% endfor %}
+
+{{ m.known(incidents, runbooks) }}
+
+## 출처
+
+{% for s in e.sources %}
+- `{{ s }}`
+{% endfor %}
+- 지표 파이프라인(`metrics-hourly`) · 결정적 판정(SLO · 7일 평균 · 3σ)

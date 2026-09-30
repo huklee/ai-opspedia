@@ -1,0 +1,52 @@
+{% macro oncall(team) -%}
+{% if team %}담당 {{ link('team:' ~ team.id) }} · 온콜 {{ team.oncall }} · {{ team.channel }}{% else %}담당 미지정{% endif %}
+{%- endmacro %}
+{% macro downstream_table(down) -%}
+{% if down %}
+| 거리 | 상태 | 엔티티 | 경유 | 관계 |
+|---|---|---|---|---|
+{% for d in down %}
+| {{ d.distance }} | {{ status_of(d.id) }} | {{ link(d.id) }} | {{ title(d.via) }} | {{ d.rel }} |
+{% endfor %}
+{% else %}
+- 없음
+{% endif %}
+{%- endmacro %}
+{% macro known(incidents, runbooks) -%}
+{% set ms = in_e[id] | selectattr('rel', 'equalto', 'measures') | map(attribute='src') | list %}
+{% if ms %}
+## 관련 지표
+
+{% for m_ in ms %}
+- {{ status_of(m_) }} {{ link(m_) }}
+{% endfor %}
+
+{% endif %}
+## 알려진 장애
+
+{% if incidents %}
+{% for i in incidents %}
+- {{ link(i) }}
+{% endfor %}
+{% else %}
+- 기록 없음
+{% endif %}
+
+## 런북 · 매뉴얼
+
+{% if runbooks %}
+{% for r in runbooks %}
+- {{ link(r) }}
+{% endfor %}
+{% else %}
+- 연결된 문서 없음
+{% endif %}
+{%- endmacro %}
+{% macro sources(e) -%}
+## 출처
+
+{% for s in e.sources %}
+- `{{ s }}`
+{% endfor %}
+- 생성: opspedia-poc 결정적 렌더러 · 상태 `generated`
+{%- endmacro %}

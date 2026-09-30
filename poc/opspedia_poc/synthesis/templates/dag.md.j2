@@ -1,0 +1,68 @@
+{% import '_macros.j2' as m with context %}
+{% set r = f.rest or {} %}
+{% set runs = r.runs or [] %}
+{% set last = runs[0] if runs else {} %}
+# {{ e.title }}
+
+{% if last.state in ['failed', 'upstream_failed'] %}!!! danger "최근 실행 {{ last.state }} · {{ last.start_date | hm }}"{% elif r.is_paused %}!!! warning "일시정지(paused) 상태"{% else %}!!! success "최근 실행 {{ last.state or '기록 없음' }}"{% endif %}
+
+    - {{ m.oncall(team) }}
+    - 스케줄 `{{ f.schedule }}` ({{ r.timetable_description or '—' }}) · 재시도 {{ f.retries }}
+    - 최근 실행 {{ last.state | icon }} {{ last.state or '—' }} · {{ last.start_date | hm }} → {{ last.end_date | hm }} ({{ dur(last.start_date, last.end_date) }})
+    - 시스템 {{ link('system:' ~ e.system) if e.system else '—' }}
+
+## 요약
+
+<!-- gen:start summary -->
+- {{ f.description }}
+{% set reads = out_e[id] | selectattr('rel', 'equalto', 'reads') | map(attribute='dst') | list %}
+{% set writes = out_e[id] | selectattr('rel', 'equalto', 'writes') | map(attribute='dst') | list %}
+{% set builds = out_e[id] | selectattr('rel', 'equalto', 'builds') | map(attribute='dst') | list %}
+- 입력 테이블 {{ reads | length }}개 · 출력 테이블 {{ writes | length }}개{% if builds %} · 빌드 인덱스 {{ builds | map('ename') | join(', ') }}{% endif %}
+
+- 3홉 이내 다운스트림 {{ down | length }}개{% if incidents %} · 알려진 장애 {{ incidents | length }}건{% endif %}
+
+<!-- gen:end summary -->
+
+## 다운스트림 (3홉)
+
+{{ m.downstream_table(down) }}
+
+## 리니지
+
+```mermaid
+{{ mermaid(id) }}
+```
+
+## 태스크
+
+| 태스크 | 오퍼레이터 | 읽기 | 쓰기 · 대상 |
+|---|---|---|---|
+{% for t in f.tasks %}
+| `{{ t.task_id }}` | {{ t.operator }} | {{ (t.reads or []) | join(', ') or ('대기 dag:' ~ t.external_dag_id if t.external_dag_id else '—') }} | {{ (t.writes or []) | join(', ') or t.index_family or t.alias or '—' }} |
+{% endfor %}
+
+{% if f.deps %}
+- 순서: {% for a, b in f.deps %}`{{ a }}` → `{{ b }}`{{ ' · ' if not loop.last }}{% endfor %}
+
+
+{% endif %}
+{% for t in f.tasks if t.sql %}
+??? note "SQL · {{ t.task_id }}"
+
+    ```sql
+{{ t.sql | indent(4, true) }}
+    ```
+
+{% endfor %}
+## 최근 실행
+
+| 상태 | 시작 | 종료 | 소요 |
+|---|---|---|---|
+{% for run in runs %}
+| {{ run.state | icon }} {{ run.state }} | {{ run.start_date | hm }} | {{ run.end_date | hm }} | {{ dur(run.start_date, run.end_date) }} |
+{% endfor %}
+
+{{ m.known(incidents, runbooks) }}
+
+{{ m.sources(e) }}

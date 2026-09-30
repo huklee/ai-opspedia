@@ -1,0 +1,50 @@
+{
+ "key": "INC-2291",
+ "fields": {
+  "summary": "ranking_score_daily 실패로 추천 피드 미갱신",
+  "status": {
+   "name": "Resolved"
+  },
+  "priority": {
+   "name": "P2"
+  },
+  "created": "2026-08-14T05:25:00+09:00",
+  "resolutiondate": "2026-08-14T08:10:00+09:00",
+  "labels": [
+   "reco",
+   "ranking_score_daily",
+   "reco-feed"
+  ],
+  "assignee": {
+   "displayName": "김운영"
+  },
+  "description": "새벽 5시 ranking_score_daily 가 score_candidates 태스크에서 OOM 으로 실패. 이후 reco_feed_publish 가 upstream_failed 되어 reco-feed alias 가 전날 인덱스를 계속 가리킴. 사용자에게는 하루 전 추천 결과가 노출됨.",
+  "customfield_root_cause": "reco.candidates 파티션이 평소의 3배(후보생성 중복 실행)로 커져 executor 메모리 초과.",
+  "customfield_resolution": "중복 파티션 삭제 후 ranking_score_daily 재실행, reco_feed_publish 수동 트리거로 alias 전환 확인.",
+  "comment": {
+   "comments": [
+    {
+     "created": "2026-08-14T05:40:00+09:00",
+     "author": {
+      "displayName": "김운영"
+     },
+     "body": "알림 확인, ranking_score_daily 로그에서 OOM 확인"
+    },
+    {
+     "created": "2026-08-14T06:30:00+09:00",
+     "author": {
+      "displayName": "박추천"
+     },
+     "body": "candidate_gen_hourly 가 04시에 두 번 실행된 것 확인. 중복 파티션 삭제"
+    },
+    {
+     "created": "2026-08-14T07:55:00+09:00",
+     "author": {
+      "displayName": "김운영"
+     },
+     "body": "재실행 성공, reco-feed alias 전환 완료"
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,18 @@
+# {{ f.icon }} {{ e.title }}
+
+- {{ f.description }}
+- 담당 {{ link('team:' ~ e.team) if e.team else '—' }} · 지표 {{ f.metrics | length }}개 · SLO 위반 {{ f.breaches }}개
+
+## 지표
+
+| 상태 | 지표 | 최신 | 7일 평균 | 변화 | SLO |
+|---|---|---|---|---|---|
+{% for mm in f.metrics %}
+| {{ mm.eval.icon }} | {{ link('metric:' ~ mm.id) }} | {{ mm.eval.latest_fmt }} | {{ mm.eval.avg7_fmt }} | {{ '%+.1f %%' % mm.eval.delta_pct if mm.eval.delta_pct is not none else '—' }} | {{ mm.eval.slo_fmt }} |
+{% endfor %}
+
+## 출처
+
+{% for s in e.sources %}
+- `{{ s }}`
+{% endfor %}

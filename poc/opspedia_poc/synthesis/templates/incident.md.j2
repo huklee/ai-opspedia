@@ -1,0 +1,138 @@
+{% set x = f.fields %}
+{% set sy = f.synthesis %}
+{% if sy %}{% set mg = sy.merged %}{% set det = sy.deterministic %}
+# {{ e.title }}
+
+| 항목 | 값 |
+|---|---|
+| 상태 | {{ x.status.name }} |
+| 우선순위 | {{ x.priority.name }} |
+| 발생 · 탐지 | {{ det.detected_at | hm }} (첫 알림) · 인지 {{ det.acknowledged_at | hm }}{% if det.tta_min is not none %} · 인지까지 {{ det.tta_min }}분{% endif %} |
+| 해결 | {{ x.resolutiondate | hm }}{% if x.resolutiondate %} ({{ dur(x.created, x.resolutiondate) }}){% endif %} |
+| 담당 | {{ x.assignee.displayName }} |
+| 영향 엔티티 | {% for a in f.affected %}{{ link(a) }}{{ ' · ' if not loop.last }}{% else %}—{% endfor %} |
+| 근거 | 조각 {{ sy.evidence | length }}개 ({% for k, v in sy.stages[0].sources.items() if v %}{{ {'jira': 'Jira', 'alert': '알림', 'slack': '슬랙', 'postmortem': '포스트모템'}[k] }} {{ v }}{{ ' · ' if not loop.last }}{% endfor %}) · [합성 과정 보기](/e/{{ id }}/history#synthesis) |
+
+## 요약
+
+<!-- gen:start summary -->
+{% if mg.summary %}
+- {{ mg.summary.text }} `{{ mg.summary.cites | join(' ') }}`
+{% else %}
+- {{ x.summary }} ({{ x.priority.name }}, {{ x.status.name }})
+{% endif %}
+<!-- gen:end summary -->
+
+## 영향
+
+- {{ mg.impact.text if mg.impact else '미확인' }}{% if mg.impact %} `{{ mg.impact.cites | join(' ') }}`{% endif %}
+
+## 탐지
+
+- {{ mg.detection.text if mg.detection else '첫 알림 ' ~ (det.detected_at | hm) }}{% if mg.detection %} `{{ mg.detection.cites | join(' ') }}`{% endif %}
+
+## 타임라인
+
+| 시각 | 사건 | 출처 | 근거 |
+|---|---|---|---|
+{% for t in mg.timeline %}
+| {{ t.time }} | {{ t.event }} | {{ t.origin }} | `{{ t.cites | join(' ') }}` |
+{% endfor %}
+
+## 근본 원인
+
+{% if mg.root_cause %}
+- {{ mg.root_cause.text }} `{{ mg.root_cause.cites | join(' ') }}` · _{{ mg.root_cause.origin }}_
+{% else %}
+- 조사 중 (근거 부족)
+{% endif %}
+{% if mg.root_cause_llm %}
+- 보조 서술: {{ mg.root_cause_llm.text }} `{{ mg.root_cause_llm.cites | join(' ') }}`
+{% endif %}
+
+## 조치
+
+{% for a in mg.actions %}
+- {{ a.text }}{% if a.cmd %} — `{{ a.cmd }}`{% endif %} `{{ a.cites | join(' ') }}`
+{% else %}
+- 기록 없음
+{% endfor %}
+
+## 후속 조치
+
+{% for u in mg.follow_ups %}
+- [{{ 'x' if u.done else ' ' }}] {{ u.task }}{% if u.owner %} (담당 {{ u.owner }}){% endif %} `{{ u.cites | join(' ') }}`
+{% else %}
+- 등록 없음
+{% endfor %}
+
+## 런북
+
+{% for r in sy.knowledge.runbooks %}
+- {{ link(r.id) }} · 근거에서 {{ r.ref }} 언급 `{{ r.cites | join(' ') }}`
+{% else %}
+- 근거에 언급된 런북 없음
+{% endfor %}
+
+## 유사 장애
+
+{% for s_ in sy.knowledge.similar %}
+- {{ link(s_.id) }}{% if s_.referenced %} · 근거에서 직접 언급{% endif %}{% if s_.overlap %} · 공통 영향 {{ s_.overlap | map('ename') | join(', ') }}{% endif %}
+
+{% else %}
+- 없음
+{% endfor %}
+
+## 출처
+
+- `jira:{{ f.key }}` · 원자료 묶음 {{ e.sources[-1] if e.sources | length > 1 else '' }}
+- 6단계 장애 파서: 근거 분해 → 결정적 추출 → LLM 구조화 → 검증 → 병합 → 지식 합성
+{% else %}
+# {{ e.title }}
+
+| 항목 | 값 |
+|---|---|
+| 상태 | {{ x.status.name }} |
+| 우선순위 | {{ x.priority.name }} |
+| 발생 | {{ x.created | hm }} |
+| 해결 | {{ x.resolutiondate | hm }} ({{ dur(x.created, x.resolutiondate) }}) |
+| 담당 | {{ x.assignee.displayName }} |
+| 영향 엔티티 | {% for a in f.affected %}{{ link(a) }}{{ ' · ' if not loop.last }}{% else %}—{% endfor %} |
+
+## 요약
+
+<!-- gen:start summary -->
+{% if narrative %}
+{{ narrative.summary }}
+
+- 서술: GPT-OSS-120B · 인용 검사 통과
+{% else %}
+- {{ x.summary }} ({{ x.priority.name }}, {{ x.status.name }})
+- 영향 {{ f.affected | map('ename') | join(', ') or '미확인' }}
+{% endif %}
+<!-- gen:end summary -->
+
+## 현상
+
+- {{ x.description }}
+
+## 근본 원인
+
+- {{ x.customfield_root_cause or '미정' }}
+
+## 조치
+
+- {{ x.customfield_resolution or '진행 중' }}
+
+## 타임라인
+
+{% for c in x.comment.comments | sort(attribute='created') %}
+- {{ c.created | hm }} · {{ c.author.displayName }} · {{ c.body }}
+{% else %}
+- 코멘트 없음
+{% endfor %}
+
+## 출처
+
+- `jira:{{ f.key }}` · Jira 필드 → 템플릿 섹션 매핑(LLM 없음)
+{% endif %}

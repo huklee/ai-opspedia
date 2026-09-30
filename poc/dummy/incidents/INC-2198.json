@@ -1,0 +1,27 @@
+{
+ "key": "INC-2198",
+ "fields": {
+  "summary": "랭킹 모델 등록 누락으로 이전 모델 사용",
+  "status": {
+   "name": "Resolved"
+  },
+  "priority": {
+   "name": "P3"
+  },
+  "created": "2026-06-03T07:00:00+09:00",
+  "resolutiondate": "2026-06-03T09:30:00+09:00",
+  "labels": [
+   "reco",
+   "ranking_train_weekly"
+  ],
+  "assignee": {
+   "displayName": "박추천"
+  },
+  "description": "ranking_train_weekly 의 register_model 태스크가 권한 오류로 실패해 reco.model_registry 에 새 버전이 없었음. ranking_score_daily 는 지난주 모델로 점수 계산.",
+  "customfield_root_cause": "모델 저장소 서비스 계정 토큰 만료.",
+  "customfield_resolution": "토큰 갱신 후 register_model 만 재실행.",
+  "comment": {
+   "comments": []
+  }
+ }
+}

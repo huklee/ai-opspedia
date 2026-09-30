@@ -1,0 +1,26 @@
+<html><head><title>검색 클러스터 yellow 상태 대응</title></head><body>
+<h1>검색 클러스터 yellow 상태 대응</h1>
+<p>문서 ID RB-SRCH-002 · 담당 검색 인프라팀 · 최종 검토 2026-09-10 · Confluence 내보내기 문서</p>
+<p>es-prod 클러스터 health 가 <b>yellow</b>(레플리카 미할당)일 때의 확인·조치 절차. yellow 는 검색 서비스는 가능하지만 노드 장애 시 데이터 손실 위험이 있는 상태.</p>
+<h2>1. 심각도</h2>
+<table><tr><th>상태</th><th>심각도</th><th>조치 시한</th></tr>
+<tr><td>yellow, 새 인덱스 레플리카만 미할당</td><td>SEV3</td><td>당일</td></tr>
+<tr><td>yellow, 서비스 중 alias 대상 인덱스 레플리카 미할당</td><td>SEV2</td><td>1시간</td></tr>
+<tr><td>red (프라이머리 미할당)</td><td>SEV1</td><td>즉시</td></tr></table>
+<h2>2. 확인</h2>
+<ol><li><code>GET _cluster/health?level=indices</code> 로 yellow 인덱스 목록 확인</li>
+<li><code>GET _cat/shards?v&amp;h=index,shard,prirep,state,unassigned.reason | grep UNASSIGNED</code></li>
+<li><code>GET _cluster/allocation/explain</code> 으로 미할당 이유 확인</li>
+<li>새로 만든 인덱스(예: products_v42)의 <code>number_of_replicas</code> 가 데이터 노드 수 - 1 을 넘는지 확인</li>
+<li>디스크 사용률: <code>GET _cat/allocation?v</code> (high watermark 90 %)</li></ol>
+<h2>3. 원인별 조치</h2>
+<table><tr><th>미할당 이유</th><th>조치</th></tr>
+<tr><td>DISK_THRESHOLD (워터마크 초과)</td><td>오래된 인덱스(alias 없는 이전 버전 2개 초과분) 삭제 또는 노드 추가</td></tr>
+<tr><td>레플리카 수 과다</td><td><code>PUT products_v42/_settings {"number_of_replicas": 1}</code></td></tr>
+<tr><td>NODE_LEFT (노드 이탈)</td><td>노드 복구 대기 5분 → 미복구 시 인프라팀 호출</td></tr>
+<tr><td>ALLOCATION_FAILED (재시도 초과)</td><td><code>POST _cluster/reroute?retry_failed=true</code></td></tr></table>
+<h2>4. 검증</h2>
+<p><code>GET _cluster/health</code> → status green, unassigned_shards 0. alias 전환 대기 중이면 <b>상품 인덱스 alias 전환 · 롤백 런북</b> 진행.</p>
+<h2>5. 에스컬레이션</h2>
+<p>red 전환 또는 30분 내 미해결 시 검색 인프라팀 리드 · 인프라 온콜 호출.</p>
+</body></html>

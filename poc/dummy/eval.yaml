@@ -1,0 +1,42 @@
+# PoC 한국어 검색 평가 세트 (H2). relevant = 정답 문서 id 목록
+queries:
+  # 조사·띄어쓰기 변형
+  - {q: 추천 피드가 갱신되지 않음, relevant: [incident:INC-2291, runbook:reco-feed-recovery]}
+  - {q: 추천피드 미갱신, relevant: [incident:INC-2291, runbook:reco-feed-recovery]}
+  - {q: 장애가 난 랭킹 배치, relevant: [dag:ranking_score_daily, incident:INC-2291]}
+  - {q: 장애 대응 가이드, relevant: [runbook:oncall-guide]}
+  - {q: 장애대응, relevant: [runbook:oncall-guide]}
+  - {q: 온콜 가이드, relevant: [runbook:oncall-guide]}
+  # 복합어
+  - {q: 피처스토어 백필, relevant: [runbook:backfill-guide]}
+  - {q: 후보생성 중복 실행, relevant: [incident:INC-2291, dag:candidate_gen_hourly]}
+  - {q: 검색어자동완성, relevant: [incident:INC-2330, index:query-suggest]}
+  - {q: 상품인덱스 전환, relevant: [runbook:alias-swap-runbook, dag:product_index_alias_swap]}
+  # 한영 혼용
+  - {q: alias 전환 실패, relevant: [incident:INC-2310, dag:product_index_alias_swap, runbook:alias-swap-runbook]}
+  - {q: products 인덱스 문서 수 감소, relevant: [incident:INC-2310, index:products]}
+  - {q: reco-feed 인덱스, relevant: [index:reco-feed, alias:reco-feed]}
+  - {q: 클러스터 yellow 대응, relevant: [runbook:cluster-yellow]}
+  - {q: OOM 으로 실패, relevant: [incident:INC-2291]}
+  - {q: DAG 일시정지, relevant: [incident:INC-2330, dag:query_suggest_build]}
+  # 약어·동의어
+  - {q: 피처 테이블, relevant: [table:reco.user_features, table:reco.item_features]}
+  - {q: 리코 피드 인덱스, relevant: [index:reco-feed, alias:reco-feed]}
+  - {q: 인시던트 랭킹 모델, relevant: [incident:INC-2198]}
+  - {q: 색인 재처리, relevant: [runbook:alias-swap-runbook, dag:product_index_build]}
+  - {q: 별칭 롤백, relevant: [runbook:alias-swap-runbook]}
+  # 식별자
+  - {q: feature_store_daily, relevant: [dag:feature_store_daily]}
+  - {q: reco.user_features, relevant: [table:reco.user_features]}
+  - {q: user_features, relevant: [table:reco.user_features]}
+  - {q: products_v42, relevant: [index:products]}
+  - {q: ranking score, relevant: [dag:ranking_score_daily]}
+  - {q: INC-2310, relevant: [incident:INC-2310]}
+  # 자연어 질문
+  - {q: 유저 임베딩은 어디서 만들어지나, relevant: [dag:user_embedding_daily, table:reco.user_embeddings]}
+  - {q: 랭킹 모델은 언제 재학습하나, relevant: [dag:ranking_train_weekly]}
+  - {q: 검색 클릭 로그를 적재하는 작업, relevant: [dag:search_log_etl, table:logs.search_clicks]}
+  - {q: 모델 등록이 권한 오류로 실패했을 때, relevant: [incident:INC-2198]}
+  - {q: 새 인덱스 레플리카가 할당되지 않을 때, relevant: [runbook:cluster-yellow]}
+  - {q: 추천 결과가 하루 전 데이터로 보일 때, relevant: [runbook:reco-feed-recovery, incident:INC-2291]}
+  - {q: 원천 로그 도착 지연으로 연쇄 지연, relevant: [incident:INC-2254]}

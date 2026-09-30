@@ -1,0 +1,25 @@
+{% import '_macros.j2' as m with context %}
+# {{ e.title }} (alias)
+
+!!! {{ 'danger' if f.level == 'crit' else 'warning' if f.level == 'warn' else 'success' }} "alias → {{ f.target }}"
+
+    - 패밀리 {{ link('index:' ~ f.family) }} {{ status_of('index:' ~ f.family) }} · 최신 인덱스 `{{ f.newest }}`
+
+## 요약
+
+<!-- gen:start summary -->
+- `{{ f.alias }}` 는 현재 `{{ f.target }}` 를 가리킴{% if f.newest != f.target %} · 최신 `{{ f.newest }}` 로 전환 미완료{% endif %}
+
+<!-- gen:end summary -->
+
+## 업스트림
+
+{% for u in up %}
+- {{ u.distance }}홉 {{ status_of(u.id) }} {{ link(u.id) }} ({{ u.rel }})
+{% else %}
+- 없음
+{% endfor %}
+
+{{ m.known(incidents, runbooks) }}
+
+{{ m.sources(e) }}

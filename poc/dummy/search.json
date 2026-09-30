@@ -1,0 +1,13 @@
+{
+  "_comment": "ES/OpenSearch _cat/indices, _alias, _mapping 형태의 dummy 스냅샷",
+  "cluster": "es-prod", "engine": "elasticsearch 8.15", "fetched_at": "2026-09-29T08:59:40+09:00",
+  "cluster_health": "yellow",
+  "indices": [
+    {"index": "products_v41", "health": "green", "docs_count": 1204331, "store_size": "3.1gb", "creation_date": "2026-09-28T03:45:10+09:00", "mappings": {"title": "text(nori)", "brand": "keyword", "price": "scaled_float", "in_stock": "boolean"}},
+    {"index": "products_v42", "health": "yellow", "docs_count": 846120, "store_size": "2.2gb", "creation_date": "2026-09-29T03:47:02+09:00", "mappings": {"title": "text(nori)", "brand": "keyword", "price": "scaled_float", "in_stock": "boolean", "promo_tag": "keyword"}},
+    {"index": "reco-feed-2026.09.28", "health": "green", "docs_count": 3120450, "store_size": "5.8gb", "creation_date": "2026-09-28T06:18:30+09:00", "mappings": {"user_id": "long", "items": "long"}},
+    {"index": "reco-feed-2026.09.27", "health": "green", "docs_count": 3098221, "store_size": "5.7gb", "creation_date": "2026-09-27T06:17:02+09:00", "mappings": {"user_id": "long", "items": "long"}},
+    {"index": "query-suggest-2026.09.13", "health": "green", "docs_count": 90412, "store_size": "120mb", "creation_date": "2026-09-13T02:20:01+09:00", "mappings": {"query": "search_as_you_type", "weight": "integer"}}
+  ],
+  "aliases": {"products": "products_v41", "reco-feed": "reco-feed-2026.09.28", "query-suggest": "query-suggest-2026.09.13"}
+}

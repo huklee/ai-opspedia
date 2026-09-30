@@ -1,0 +1,59 @@
+# 지난 1주 실행 이력 재현 (seed-history). 각 실행 = 최종 dummy 에서 "그 시점 이후 생긴 변경"을 되돌린 스냅샷.
+# 날짜별 Airflow · 검색 엔진 · 지표 상태는 실행 시각으로 자동 생성, 아래 changes 는 콘텐츠 변경만 기술.
+changes:
+  ctr_report_dag:       # 09-23 06:00 이후: 신규 DAG + 테이블
+    since: "2026-09-23T05:00:00+09:00"
+    undo:
+      - {delete: dags/ctr_report_daily.py}
+      - {file: ddl/reco.sql, replace: ["CREATE TABLE reco.ctr_report (user_id BIGINT, ctr DOUBLE COMMENT '클릭률') COMMENT '추천 CTR 리포트' PARTITIONED BY (dt STRING);\n", ""]}
+  users_segment_column: # 09-24: reco.users 에 segment 컬럼 추가
+    since: "2026-09-24T05:00:00+09:00"
+    undo:
+      - {file: ddl/reco.sql, replace: [", segment STRING COMMENT '유저 세그먼트'", ""]}
+  ranking_model_join:   # 09-25: 랭킹 SQL 에 모델 레지스트리 조인 추가
+    since: "2026-09-25T05:00:00+09:00"
+    undo:
+      - {file: dags/ranking_score_daily.py, replace: ["rank_items(c.items, f.clicks_7d, m.version)", "rank_items(c.items, f.clicks_7d, 'v2026-09')"]}
+      - {file: dags/ranking_score_daily.py, replace: ["\n        CROSS JOIN reco.model_registry m", ""]}
+  runbook_revision:     # 09-26 14:10: 추천 피드 런북 개정 (공지 템플릿 · 롤백 추가)
+    since: "2026-09-26T14:00:00+09:00"
+    undo:
+      - {file: manuals/reco-feed-recovery.md, replace: ["최종 검토 2026-09-26", "최종 검토 2026-08-14"]}
+      - {file: manuals/reco-feed-recovery.md, cut_between: ["## 8. 롤백", "## 9. 에스컬레이션"]}
+      - {file: manuals/reco-feed-recovery.md, cut_between: ["## 10. 공지 템플릿", "## 11. 사후 조치"]}
+  inc_2341:             # 09-29 07:12 생성, 슬랙 스레드 export 는 09:41 에 원자료로 반영
+    since: "2026-09-29T09:41:00+09:00"
+    undo:
+      - {delete: incidents/INC-2341.json}
+      - {delete: incidents_raw/INC-2341}
+  inc_2330:             # 09-27 10:05: Jira 신규 장애
+    since: "2026-09-27T10:00:00+09:00"
+    undo:
+      - {delete: incidents/INC-2330.json}
+
+runs:
+  - {at: "2026-09-22T06:00:00+09:00", job: full-sync, trigger: schedule, note: 초기 적재}
+  - {at: "2026-09-22T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-23T06:00:00+09:00", job: full-sync, trigger: schedule}
+  - {at: "2026-09-23T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-24T06:00:00+09:00", job: full-sync, trigger: schedule}
+  - {at: "2026-09-24T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-24T11:20:00+09:00", job: full-sync, trigger: manual, actor: huklee, fail: [reco-manuals], note: "Confluence 내보내기 경로 점검 중 재실행"}
+  - {at: "2026-09-25T06:00:00+09:00", job: full-sync, trigger: schedule}
+  - {at: "2026-09-25T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-26T06:00:00+09:00", job: full-sync, trigger: schedule}
+  - {at: "2026-09-26T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-26T14:10:00+09:00", job: full-sync, trigger: manual, actor: kim.ops, note: "런북 개정 반영 요청 (RB-RECO-001)"}
+  - {at: "2026-09-27T06:00:00+09:00", job: full-sync, trigger: schedule}
+  - {at: "2026-09-27T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-27T10:05:00+09:00", job: full-sync, trigger: webhook, actor: jira, note: "Jira 이벤트: INC-2330 생성"}
+  - {at: "2026-09-28T06:00:00+09:00", job: full-sync, trigger: schedule}
+  - {at: "2026-09-28T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-29T06:00:00+09:00", job: full-sync, trigger: schedule}
+  - {at: "2026-09-29T07:00:00+09:00", job: status-refresh, trigger: schedule}
+  - {at: "2026-09-29T07:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-29T08:00:00+09:00", job: status-refresh, trigger: schedule}
+  - {at: "2026-09-29T08:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-29T08:59:00+09:00", job: status-refresh, trigger: schedule}
+  - {at: "2026-09-29T09:05:00+09:00", job: metrics-hourly, trigger: schedule}
+  - {at: "2026-09-29T09:41:00+09:00", job: full-sync, trigger: webhook, actor: jira, note: "Jira 이벤트: INC-2341 슬랙 스레드 · 알림 원자료 첨부"}

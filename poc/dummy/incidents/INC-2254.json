@@ -1,0 +1,27 @@
+{
+ "key": "INC-2254",
+ "fields": {
+  "summary": "피처스토어 지연으로 임베딩 DAG 연쇄 지연",
+  "status": {
+   "name": "Resolved"
+  },
+  "priority": {
+   "name": "P3"
+  },
+  "created": "2026-07-21T03:40:00+09:00",
+  "resolutiondate": "2026-07-21T05:00:00+09:00",
+  "labels": [
+   "reco",
+   "feature_store_daily"
+  ],
+  "assignee": {
+   "displayName": "박추천"
+  },
+  "description": "search_log_etl 이 1시간 지연되면서 feature_store_daily 의 센서가 대기, user_embedding_daily 와 item_embedding_daily 도 연쇄 지연.",
+  "customfield_root_cause": "logs.raw_search_events 원천 파티션 도착 지연.",
+  "customfield_resolution": "자연 해소. 센서 timeout 을 3시간으로 조정.",
+  "comment": {
+   "comments": []
+  }
+ }
+}

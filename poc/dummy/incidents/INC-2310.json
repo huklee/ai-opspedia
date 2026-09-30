@@ -1,0 +1,43 @@
+{
+ "key": "INC-2310",
+ "fields": {
+  "summary": "products 인덱스 문서 수 급감으로 alias 전환 중단",
+  "status": {
+   "name": "Resolved"
+  },
+  "priority": {
+   "name": "P1"
+  },
+  "created": "2026-09-02T04:05:00+09:00",
+  "resolutiondate": "2026-09-02T06:40:00+09:00",
+  "labels": [
+   "search",
+   "products",
+   "product_index_alias_swap"
+  ],
+  "assignee": {
+   "displayName": "이검색"
+  },
+  "description": "product_index_build 가 만든 새 products 인덱스의 문서 수가 기존 대비 35% 적어 product_index_alias_swap 의 안전장치(max_doc_drop 20%)가 전환을 막음. 검색은 이전 인덱스로 정상 서비스.",
+  "customfield_root_cause": "search.products 원천 테이블 적재 지연으로 재고 여부 필터가 대량 상품을 제외.",
+  "customfield_resolution": "원천 적재 완료 후 product_index_build 재실행(리인덱스), 문서 수 확인 후 alias 수동 전환. 런북: 상품 인덱스 alias 전환.",
+  "comment": {
+   "comments": [
+    {
+     "created": "2026-09-02T04:10:00+09:00",
+     "author": {
+      "displayName": "이검색"
+     },
+     "body": "alias 전환 실패 알림. 새 인덱스 docs_count 확인"
+    },
+    {
+     "created": "2026-09-02T05:20:00+09:00",
+     "author": {
+      "displayName": "이검색"
+     },
+     "body": "search.products 적재 지연 확인, 재빌드 시작"
+    }
+   ]
+  }
+ }
+}

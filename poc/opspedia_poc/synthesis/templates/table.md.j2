@@ -1,0 +1,53 @@
+{% import '_macros.j2' as m with context %}
+# {{ e.title }}
+
+!!! info "{{ f.comment or '설명 없음' }}"
+
+    - {{ m.oncall(team) }}
+    - 시스템 {{ link('system:' ~ e.system) if e.system else '—' }}{% if f.partitions %} · 파티션 `{{ f.partitions | join(', ') }}`{% endif %}
+
+{% if f.stub %}
+    - DDL 미수집 · SQL 참조로만 확인된 테이블
+{% endif %}
+
+## 요약
+
+<!-- gen:start summary -->
+{% set writers = in_e[id] | selectattr('rel', 'equalto', 'writes') | map(attribute='src') | list %}
+{% set readers = in_e[id] | selectattr('rel', 'equalto', 'reads') | map(attribute='src') | list %}
+- {{ f.comment or e.title }} 테이블 · 컬럼 {{ f.columns | length }}개
+- 적재 DAG {{ writers | map('ename') | join(', ') or '없음' }} · 읽는 DAG {{ readers | length }}개
+<!-- gen:end summary -->
+
+## 컬럼
+
+{% if f.columns %}
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+{% for c in f.columns %}
+| `{{ c.name }}` | {{ c.type }} | {{ c.comment }} |
+{% endfor %}
+{% else %}
+- 컬럼 정보 없음
+{% endif %}
+
+## 적재 · 사용
+
+- 적재(writes): {% for w in writers %}{{ link(w) }} {{ status_of(w) }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}
+
+- 사용(reads): {% for r in readers %}{{ link(r) }}{{ ' · ' if not loop.last }}{% else %}없음{% endfor %}
+
+
+## 다운스트림 (3홉)
+
+{{ m.downstream_table(down) }}
+
+## 리니지
+
+```mermaid
+{{ mermaid(id) }}
+```
+
+{{ m.known(incidents, runbooks) }}
+
+{{ m.sources(e) }}

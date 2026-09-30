@@ -1,0 +1,12 @@
+# {{ e.title }}
+
+- {{ f.description }}
+- 담당 {{ link('team:' ~ e.team) }} · 온콜 {{ team.oncall }} · {{ team.channel }}
+
+## 구성
+
+| 상태 | 엔티티 | 타입 |
+|---|---|---|
+{% for i in members if not i.startswith('system:') %}
+| {{ status_of(i) }} | {{ link(i) }} | {{ i.split(':')[0] }} |
+{% endfor %}
