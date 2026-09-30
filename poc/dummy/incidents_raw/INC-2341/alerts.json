@@ -1,0 +1,8 @@
+{"_comment": "Alertmanager webhook + Airflow on_failure_callback 원본 (dummy)",
+ "alerts": [
+  {"source": "airflow", "receivedAt": "2026-09-29T04:00:41+09:00", "labels": {"alertname": "AirflowTaskFailed", "dag_id": "product_index_alias_swap", "task_id": "swap_products_alias", "severity": "warning"}, "annotations": {"summary": "swap_products_alias failed: doc count drop 29.7% > max_doc_drop 20%"}},
+  {"source": "airflow", "receivedAt": "2026-09-29T05:21:49+09:00", "labels": {"alertname": "AirflowTaskFailed", "dag_id": "ranking_score_daily", "task_id": "score_candidates", "severity": "critical", "try_number": "3"}, "annotations": {"summary": "score_candidates failed after 3 tries: Container killed by YARN for exceeding memory limits (14.2 GB of 12 GB)"}},
+  {"source": "airflow", "receivedAt": "2026-09-29T06:00:02+09:00", "labels": {"alertname": "AirflowDagUpstreamFailed", "dag_id": "reco_feed_publish", "severity": "warning"}, "annotations": {"summary": "reco_feed_publish: upstream ranking_score_daily failed"}},
+  {"source": "prometheus", "receivedAt": "2026-09-29T07:05:10+09:00", "labels": {"alertname": "RecoFeedStale", "index": "reco-feed", "severity": "critical"}, "annotations": {"summary": "reco-feed alias target age 26.7h > 26h", "value": "26.7"}},
+  {"source": "prometheus", "receivedAt": "2026-09-29T09:05:12+09:00", "labels": {"alertname": "RecoCtrDrop", "severity": "warning"}, "annotations": {"summary": "reco feed CTR 3.62% (7d avg 4.13%, -12.4%)", "value": "3.62"}}
+ ]}

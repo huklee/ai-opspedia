@@ -1,0 +1,3 @@
+{"alerts": [
+  {"source": "airflow", "receivedAt": "2026-09-02T04:00:38+09:00", "labels": {"alertname": "AirflowTaskFailed", "dag_id": "product_index_alias_swap", "task_id": "swap_products_alias", "severity": "warning"}, "annotations": {"summary": "swap_products_alias failed: doc count drop 35.1% > max_doc_drop 20%"}}
+ ]}

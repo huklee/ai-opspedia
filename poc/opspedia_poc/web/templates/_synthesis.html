@@ -1,0 +1,85 @@
+{# 장애 원자료 → 지식 합성 과정 (생성 이력 페이지에 포함) #}
+{% set sy = d.facts.synthesis %}{% set mg = sy.merged %}
+<section id="synthesis">
+<h2 class="h">🧪 장애 합성 과정 <small class="muted">원자료 → 근거 조각 → 추출 → 검증 → 지식 · 현재 버전 기준</small></h2>
+<p class="muted small">근거 조각마다 id(E1…)를 붙이고, LLM 이 만든 모든 항목은 이 id 를 인용해야 통과. 오른쪽 인용 칩을 누르면 왼쪽 근거가 강조됨.</p>
+<div class="stepper">
+{% for st in sy.stages %}
+  <div class="stp {{ 'bad' if st.status == 'error' }}">
+    <span class="stp-n">{{ loop.index }}</span>
+    <b>{{ st.name }}</b>
+    <small>{% if st.name == '근거 분해' %}조각 {{ st.spans }}개 · {% for k, v in st.sources.items() if v %}{{ SRC[k] }} {{ v }}{{ ' · ' if not loop.last }}{% endfor %}
+    {% elif st.name == '결정적 추출' %}엔티티 {{ st.entities }} · 알림 {{ st.alerts }} · 명령 {{ st.commands }} · 수치 {{ st.numbers }}
+    {% elif st.name == 'LLM 구조화' %}{{ sy.llm.model or 'off' }}{% if st.cached %} · 캐시{% endif %}
+    {% elif st.name == '검증' %}통과 {{ st.ok }} · 보정 {{ st.fixed }} · 주의 {{ st.warn }} · 제외 {{ st.dropped }}
+    {% elif st.name == '병합' %}항목 {{ st.fields }}개 · 결정적 사실 우선
+    {% else %}엣지 {{ st.edges }} · 유사 {{ st.similar }} · 런북 {{ st.runbooks }} · 공백 {{ st.gaps }}{% endif %}</small>
+    <span class="stp-ms">{{ '%.0f' % (sy.llm.ms if st.name == 'LLM 구조화' and sy.llm.ms else st.ms) }} ms</span>
+  </div>{% if not loop.last %}<span class="stp-a">→</span>{% endif %}
+{% endfor %}
+</div>
+
+<div class="syn">
+  <section class="ev-col">
+    <h3 class="h">📥 원자료 근거 <span class="n">{{ sy.evidence|length }}</span></h3>
+    <div class="evtabs" role="tablist">
+      <button class="on" data-src="all">전체</button>{% for k in ['jira','alert','slack','postmortem'] %}{% if sy.stages[0].sources[k] %}<button data-src="{{ k }}">{{ SRC[k] }} {{ sy.stages[0].sources[k] }}</button>{% endif %}{% endfor %}
+    </div>
+    <div class="evlist">
+    {% for e in sy.evidence %}
+      <div class="span" id="{{ e.id }}" data-src="{{ e.src }}">
+        <span class="sid">{{ e.id }}</span>
+        <span class="smeta"><span class="chip src-{{ e.src }}">{{ SRC[e.src] }}</span>{% if e.at %} {{ when(e.at) }}{% endif %}{% if e.who %} · {{ e.who }}{% endif %}{% if e.where and e.src == 'postmortem' %} · {{ e.where }}{% endif %}</span>
+        <span class="stext">{{ mark(e.text)|safe }}</span>
+      </div>
+    {% endfor %}
+    </div>
+  </section>
+
+  <section class="fx-col">
+    <h3 class="h">🧾 추출 결과</h3>
+    {% macro cites(cs) %}{% for c in cs %}<button class="cite" data-c="{{ c }}">{{ c }}</button>{% endfor %}{% endmacro %}
+    {% for key, label in [('summary','요약'),('impact','영향'),('detection','탐지'),('root_cause','근본 원인'),('root_cause_llm','근본 원인 · LLM 보조')] %}{% if mg[key] %}
+    <div class="fx" data-cites="{{ mg[key].cites|join(' ') }}"><div class="fx-h"><b>{{ label }}</b><span class="chip {{ 'ok' if '결정적' in mg[key].origin else 'warn' if '리뷰' in mg[key].origin else '' }}">{{ mg[key].origin }}</span></div>
+      <p>{{ mg[key].text }}</p><div class="fx-c">{{ cites(mg[key].cites) }}</div></div>
+    {% endif %}{% endfor %}
+
+    <div class="fx"><div class="fx-h"><b>타임라인</b><span class="chip">결정적 알림 + LLM</span></div>
+      <table class="tbl mini"><tbody>
+      {% for t in mg.timeline %}<tr data-cites="{{ t.cites|join(' ') }}"><td class="mono">{{ t.time }}</td><td>{{ t.event }}</td><td><span class="chip {{ 'ok' if '결정적' in t.origin else '' }}">{{ t.origin }}</span></td><td>{{ cites(t.cites) }}</td></tr>{% endfor %}
+      </tbody></table></div>
+
+    <div class="fx"><div class="fx-h"><b>조치</b></div>
+      <ul class="tight">{% for a in mg.actions %}<li data-cites="{{ a.cites|join(' ') }}">{{ a.text }}{% if a.cmd %} <code>{{ a.cmd }}</code>{% endif %} {{ cites(a.cites) }}</li>{% else %}<li class="muted">없음</li>{% endfor %}</ul></div>
+
+    <div class="fx"><div class="fx-h"><b>후속 조치</b></div>
+      <ul class="tight">{% for u in mg.follow_ups %}<li data-cites="{{ u.cites|join(' ') }}">{{ '☑' if u.done else '☐' }} {{ u.task }}{% if u.owner %} <span class="muted">· {{ u.owner }}</span>{% endif %} {{ cites(u.cites) }}</li>{% else %}<li class="muted">없음</li>{% endfor %}</ul></div>
+
+    <h3 class="h">🛡️ 검증 결과</h3>
+    <table class="tbl mini">
+    <thead><tr><th></th><th>항목</th><th>판정 이유</th></tr></thead><tbody>
+    {% for c in sy.checks|sort(attribute='status', reverse=False) if c.status != 'ok' %}
+      <tr class="ck-{{ c.status }}"><td>{{ {'dropped': '⛔', 'fixed': '🔧', 'warn': '⚠️'}[c.status] }}</td><td><code>{{ c.field }}</code><div class="muted small">{{ c.text|truncate(80) }}</div></td><td>{{ c.reason }}</td></tr>
+    {% endfor %}
+      <tr><td>✅</td><td colspan="2">통과 {{ sy.checks|selectattr('status','equalto','ok')|list|length }}건 — 인용 근거 존재 · 수치가 근거에 있음 · 식별자 해석됨</td></tr>
+    </tbody></table>
+  </section>
+</div>
+
+<h3 class="h">🕸️ 지식 합성 결과</h3>
+<div class="kg">
+  <pre class="mermaid">{{ graph }}</pre>
+  <div class="kg-side">
+    <div class="fx"><div class="fx-h"><b>결정적 추출</b></div>
+      <div class="chips">{% for ent, cs in sy.deterministic.mentions.items() %}<a class="chip" href="/e/{{ ent }}">{{ ICON.get(ent.split(':')[0], '') }} {{ svc.docs[ent].title if ent in svc.docs else ent }} ×{{ cs|length }}</a>{% endfor %}</div>
+      <p class="muted small">명령 {{ sy.deterministic.commands|length }} · 수치 {{ sy.deterministic.numbers|length }} · 참조 장애 {{ sy.deterministic.incident_refs|join(', ') or '—' }} · 참조 런북 {{ sy.deterministic.runbook_refs|join(', ') or '—' }}</p>
+    </div>
+    <div class="fx"><div class="fx-h"><b>유사 장애</b></div>
+      <ul class="tight">{% for s_ in sy.knowledge.similar %}<li><a href="/e/{{ s_.id }}">{{ svc.docs[s_.id].title if s_.id in svc.docs else s_.id }}</a>{% if s_.referenced %} <span class="chip">직접 언급</span>{% endif %} <span class="muted small">공통 {{ s_.overlap|length }}</span></li>{% else %}<li class="muted">없음</li>{% endfor %}</ul></div>
+    <div class="fx"><div class="fx-h"><b>런북 공백 제안</b></div>
+      <ul class="tight">{% for g in sy.knowledge.command_gaps %}<li><code>{{ g.cmd }}</code> — 연결된 런북에 없는 명령 → 리뷰 큐 {{ cites(g.cites) }}</li>{% else %}<li class="muted">사용된 명령 {{ sy.deterministic.commands|length }}개 모두 연결 런북에 있음</li>{% endfor %}</ul></div>
+  </div>
+</div>
+
+<details class="fold"><summary>LLM 원출력 JSON ({{ sy.llm.model }}{% if sy.llm.cached %} · 캐시{% endif %})</summary><pre class="diff"><span class="ctx">{{ raw_json }}</span></pre></details>
+</section>

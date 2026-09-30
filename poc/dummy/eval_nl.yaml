@@ -1,0 +1,14 @@
+# 자연어 질의 평가 (AI 답변). relevant = 검색 정답, expect = 답변에 들어가야 할 핵심어(하나 이상)
+queries:
+  - {q: "오늘 추천 피드가 왜 안 바뀌었어?", relevant: [index:reco-feed, incident:INC-2341, dag:ranking_score_daily, runbook:reco-feed-recovery], expect: [ranking_score_daily, 메모리, 중복, 파티션]}
+  - {q: "ranking_score_daily 담당이 누구야?", relevant: [dag:ranking_score_daily, team:reco-platform], expect: [추천 플랫폼팀, reco-oncall]}
+  - {q: "products 인덱스 지금 상태 어때?", relevant: [index:products, alias:products], expect: [products_v41, 감소, crit]}
+  - {q: "products alias 전환은 어떻게 롤백해?", relevant: [runbook:alias-swap-runbook], expect: [_aliases, 롤백, 이전 인덱스]}
+  - {q: "피처스토어가 늦으면 어디까지 영향이 가?", relevant: [dag:feature_store_daily], expect: [user_embedding_daily, ranking_score_daily]}
+  - {q: "랭킹 배치가 메모리 초과로 죽으면 뭘 먼저 봐야 해?", relevant: [runbook:ranking-oom, dag:ranking_score_daily, incident:INC-2291], expect: [파티션, candidates, 중복]}
+  - {q: "자동완성 인덱스가 오래된 이유는?", relevant: [index:query-suggest, incident:INC-2330, dag:query_suggest_build], expect: [일시정지, paused]}
+  - {q: "검색 결과가 0건인 비율이 요즘 어때?", relevant: [metric:search_zero_rate], expect: [3.41, 무결과율]}
+  - {q: "클러스터가 yellow 일 때 어떻게 해?", relevant: [runbook:cluster-yellow], expect: [레플리카, allocation, replicas]}
+  - {q: "지난번 products 문서 수 급감은 원인이 뭐였어?", relevant: [incident:INC-2310], expect: [적재, search.products, 지연]}
+  - {q: "피처스토어 백필은 어떤 순서로 해?", relevant: [runbook:backfill-guide], expect: [임베딩, backfill, 순서]}
+  - {q: "추천 CTR 이 떨어진 게 장애랑 관련 있어?", relevant: [metric:reco_ctr, incident:INC-2341], expect: [CTR, 미갱신, 3.62]}

@@ -1,0 +1,4 @@
+{"alerts": [
+  {"source": "airflow", "receivedAt": "2026-08-14T05:24:10+09:00", "labels": {"alertname": "AirflowTaskFailed", "dag_id": "ranking_score_daily", "task_id": "score_candidates", "severity": "critical", "try_number": "3"}, "annotations": {"summary": "score_candidates failed: java.lang.OutOfMemoryError: GC overhead limit exceeded"}},
+  {"source": "airflow", "receivedAt": "2026-08-14T06:00:03+09:00", "labels": {"alertname": "AirflowDagUpstreamFailed", "dag_id": "reco_feed_publish", "severity": "warning"}, "annotations": {"summary": "reco_feed_publish: upstream ranking_score_daily failed"}}
+ ]}

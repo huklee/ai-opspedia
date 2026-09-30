@@ -1,0 +1,22 @@
+
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({startOnLoad: true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'neutral', flowchart: {wrappingWidth: 420}});
+</script>
+<script>
+(function () {
+  const spans = [...document.querySelectorAll('.span')];
+  const hit = ids => { spans.forEach(s => s.classList.toggle('hit', ids.includes(s.id))); };
+  document.querySelectorAll('.cite').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const holder = b.closest('[data-cites]'), ids = holder ? holder.dataset.cites.split(' ') : [b.dataset.c];
+    hit(ids);
+    const el = document.getElementById(b.dataset.c); el && el.scrollIntoView({behavior: 'smooth', block: 'center'});
+  }));
+  document.querySelectorAll('[data-cites]').forEach(r => r.addEventListener('mouseenter', () => hit(r.dataset.cites.split(' '))));
+  document.querySelectorAll('.evtabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.evtabs button').forEach(x => x.classList.toggle('on', x === b));
+    spans.forEach(s => s.hidden = b.dataset.src !== 'all' && s.dataset.src !== b.dataset.src);
+  }));
+})();
+</script>
